@@ -1,0 +1,14 @@
+[project]
+name = "flaskartisan"
+version = "0.1.0"
+description = "A CLI tool similar to Laravel Artisan for Flask"
+requires-python = ">=3.10"
+dependencies = [
+    "click",
+    "flask",
+    "sqlalchemy",
+    "gitpython",
+]
+
+[project.scripts]
+flasktool = "flasktool.cli:cli"

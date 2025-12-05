@@ -1,0 +1,16 @@
+README.md
+pyproject.toml
+src/flaskartisan.egg-info/PKG-INFO
+src/flaskartisan.egg-info/SOURCES.txt
+src/flaskartisan.egg-info/dependency_links.txt
+src/flaskartisan.egg-info/entry_points.txt
+src/flaskartisan.egg-info/requires.txt
+src/flaskartisan.egg-info/top_level.txt
+src/flasktool/__init__.py
+src/flasktool/cli.py
+src/flasktool/commands/build.py
+src/flasktool/commands/init_project.py
+src/flasktool/commands/make_controller.py
+src/flasktool/commands/make_docker.py
+src/flasktool/commands/make_model.py
+src/flasktool/commands/server.py
