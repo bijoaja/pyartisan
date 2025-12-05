@@ -1,9 +1,0 @@
-Metadata-Version: 2.4
-Name: flaskartisan
-Version: 0.1.0
-Summary: CLI tool mirip Laravel Artisan untuk Flask
-Requires-Python: >=3.10
-Requires-Dist: click
-Requires-Dist: flask
-Requires-Dist: sqlalchemy
-Requires-Dist: gitpython

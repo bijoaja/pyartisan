@@ -1,4 +1,0 @@
-click
-flask
-sqlalchemy
-gitpython
