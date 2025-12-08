@@ -15,6 +15,14 @@ developer productivity.
 -   Easy to extend and customize
 -   Python 3.10+ support
 
+## 📝 TODO
+- Flask Migrations
+- View scaffolding
+- Automated service layers
+- Plugin system for community extensions
+- Install by pypi
+
+
 ## 📦 Installation
 
 Install FlaskArtisan using `pip`:

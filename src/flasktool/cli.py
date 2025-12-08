@@ -6,6 +6,7 @@ from flasktool.commands.build import build
 from flasktool.commands.make_docker import make_docker
 from flasktool.commands.init_project import init_project
 from flasktool.commands.make_env import make_environment
+from flasktool.commands.make_migrations import make_migrations
 
 
 @click.group()
@@ -17,6 +18,7 @@ def cli():
 cli.add_command(init_project, "init:project")
 cli.add_command(make_docker, "make:docker")
 cli.add_command(make_controller, "make:controller")
+cli.add_command(make_migrations, "make:migrations")
 cli.add_command(make_model, "make:model")
 cli.add_command(make_environment, "make:env")
 cli.add_command(server, "server")
