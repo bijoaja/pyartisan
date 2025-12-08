@@ -9,6 +9,8 @@ developer productivity.
 ## 🚀 Features
 
 -   Artisan-like CLI commands for Flask
+-   Auto install dependencies
+-   Database Migrations
 -   Generate controllers, models, and boilerplate code
 -   Integrates with SQLAlchemy
 -   Git automation powered by GitPython
@@ -16,7 +18,6 @@ developer productivity.
 -   Python 3.10+ support
 
 ## 📝 TODO
-- Flask Migrations
 - View scaffolding
 - Automated service layers
 - Plugin system for community extensions
@@ -25,7 +26,7 @@ developer productivity.
 
 ## 📦 Installation
 
-Install FlaskArtisan using `pip`:
+Install FlaskArtisan using `pip` (TODO):
 
 ``` bash
 pip install flaskartisan
@@ -34,7 +35,7 @@ pip install flaskartisan
 Or install directly from the source:
 
 ``` bash
-git clone https://github.com/yourusername/flaskartisan.git
+git clone https://github.com/bijoaja/flaskartisan.git
 cd flaskartisan
 pip install -e .
 ```
