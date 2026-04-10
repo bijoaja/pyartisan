@@ -6,13 +6,8 @@ import os
 def make_docker():
     """Generate Production & Development Dockerfile + docker-compose.yml"""
 
-    build_path = "Build"
+    build_path = "Docker"
     os.makedirs(build_path, exist_ok=True)
-
-    #remove Dockerfile.prod if exists
-    dockerfile_path = "Dockerfile"
-    if os.path.exists(dockerfile_path):
-        os.remove(dockerfile_path)
 
     # ============================================================
     # PRODUCTION DOCKERFILE
@@ -179,4 +174,4 @@ networks:
     with open(f"docker-compose.yml", "w") as f:
         f.write(compose)
 
-    click.echo("✔ Dockerfile.prod, Dockerfile.dev, and docker-compose.yml created in Build/")
+    click.echo("✔ Dockerfile (prod), Dockerfile.dev, and docker-compose.yml created in Docker/")

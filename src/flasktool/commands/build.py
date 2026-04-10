@@ -7,7 +7,7 @@ import os
 def build(image_name: str="myapp:latest"):
     """Build docker for project with a specified image name"""
 
-    if not os.path.exists("build/Dockerfile") or not os.path.isfile("docker-compose.yml"):
+    if not os.path.exists("Docker/Dockerfile") or not os.path.isfile("docker-compose.yml"):
         click.echo("❌ Dockerfile not found. Run 'make:docker' first.")
         return
 

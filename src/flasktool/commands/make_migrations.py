@@ -4,7 +4,7 @@ import os
 
 @click.command(name="make:migrations")
 @click.option("--message", "-m", default="", help="Migration message", required=True)
-@click.option("--upgrade", type=click.Choice([True]), help="Run upgrade after migrate")
+@click.option("--upgrade", is_flag=True, default=False, help="Run upgrade after migrate")
 def make_migrations(message, upgrade: bool=False):
     """
     Create Flask-Migrate migrations and optionally upgrade the database.
