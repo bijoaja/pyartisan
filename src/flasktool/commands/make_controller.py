@@ -6,6 +6,8 @@ from flasktool.utils import (
     _write_file,
     _write_controller_init,
     _write_service_init,
+    _view_service_template,
+    _api_service_template,
 )
 
 
@@ -88,76 +90,6 @@ class {name_title}ApiController(Resource):
     def delete(self, id):
         # TODO: call {name_title}ApiService.delete(id)
         return {{"success": True, "data": {{}}, "message": "Deleted"}}, 200
-"""
-
-
-# =====================================================================
-# Template: View service
-# =====================================================================
-
-def _view_service_template(name_lower: str, name_title: str) -> str:
-    return f"""\
-class {name_title}Service:
-
-    @staticmethod
-    def get_all():
-        # TODO: use {name_title}Repository.get_all()
-        return []
-
-    @staticmethod
-    def get_by_id(id):
-        # TODO: use {name_title}Repository.get_by_id(id)
-        return None
-
-    @staticmethod
-    def create(data: dict):
-        # TODO: use {name_title}Repository.save(instance)
-        pass
-
-    @staticmethod
-    def update(id, data: dict):
-        # TODO: use {name_title}Repository.save(instance)
-        pass
-
-    @staticmethod
-    def delete(id):
-        # TODO: use {name_title}Repository.delete(instance)
-        pass
-"""
-
-
-# =====================================================================
-# Template: API service
-# =====================================================================
-
-def _api_service_template(name_lower: str, name_title: str) -> str:
-    return f"""\
-class {name_title}ApiService:
-
-    @staticmethod
-    def get_all():
-        # TODO: use {name_title}Repository.get_all()
-        return []
-
-    @staticmethod
-    def get_by_id(id):
-        # TODO: use {name_title}Repository.get_by_id(id)
-        return None
-
-    @staticmethod
-    def create(data: dict):
-        # TODO: use {name_title}Repository.save(instance)
-        pass
-
-    @staticmethod
-    def update(id, data: dict):
-        # TODO: use {name_title}Repository.save(instance)
-        pass
-
-    @staticmethod
-    def delete(id):
-        # TODO: use {name_title}Repository.delete(instance)
-        pass
 """
 
 

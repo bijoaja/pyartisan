@@ -82,3 +82,69 @@ def _write_service_init(dir_path: str, file_stem: str, class_name: str) -> None:
         f.write("\n".join(new_lines) + "\n")
 
     click.echo(f"  updated: {init_path}")
+
+
+# =====================================================================
+# Shared service templates (used by make_controller and make_service)
+# =====================================================================
+
+def _view_service_template(name_lower: str, name_title: str) -> str:
+    return f"""\
+class {name_title}Service:
+
+    @staticmethod
+    def get_all():
+        # TODO: use {name_title}Repository.get_all()
+        return []
+
+    @staticmethod
+    def get_by_id(id):
+        # TODO: use {name_title}Repository.get_by_id(id)
+        return None
+
+    @staticmethod
+    def create(data: dict):
+        # TODO: use {name_title}Repository.save(instance)
+        pass
+
+    @staticmethod
+    def update(id, data: dict):
+        # TODO: use {name_title}Repository.save(instance)
+        pass
+
+    @staticmethod
+    def delete(id):
+        # TODO: use {name_title}Repository.delete(instance)
+        pass
+"""
+
+
+def _api_service_template(name_lower: str, name_title: str) -> str:
+    return f"""\
+class {name_title}ApiService:
+
+    @staticmethod
+    def get_all():
+        # TODO: use {name_title}Repository.get_all()
+        return []
+
+    @staticmethod
+    def get_by_id(id):
+        # TODO: use {name_title}Repository.get_by_id(id)
+        return None
+
+    @staticmethod
+    def create(data: dict):
+        # TODO: use {name_title}Repository.save(instance)
+        pass
+
+    @staticmethod
+    def update(id, data: dict):
+        # TODO: use {name_title}Repository.save(instance)
+        pass
+
+    @staticmethod
+    def delete(id):
+        # TODO: use {name_title}Repository.delete(instance)
+        pass
+"""

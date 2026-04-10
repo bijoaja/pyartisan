@@ -1,72 +1,12 @@
 import click
 
-from flasktool.utils import _name_parts, _write_file, _write_service_init
-
-
-# =====================================================================
-# Templates
-# =====================================================================
-
-def _view_service_template(name_lower: str, name_title: str) -> str:
-    return f"""\
-class {name_title}Service:
-
-    @staticmethod
-    def get_all():
-        # TODO: use {name_title}Repository.get_all()
-        return []
-
-    @staticmethod
-    def get_by_id(id):
-        # TODO: use {name_title}Repository.get_by_id(id)
-        return None
-
-    @staticmethod
-    def create(data: dict):
-        # TODO: use {name_title}Repository.save(instance)
-        pass
-
-    @staticmethod
-    def update(id, data: dict):
-        # TODO: use {name_title}Repository.save(instance)
-        pass
-
-    @staticmethod
-    def delete(id):
-        # TODO: use {name_title}Repository.delete(instance)
-        pass
-"""
-
-
-def _api_service_template(name_lower: str, name_title: str) -> str:
-    return f"""\
-class {name_title}ApiService:
-
-    @staticmethod
-    def get_all():
-        # TODO: use {name_title}Repository.get_all()
-        return []
-
-    @staticmethod
-    def get_by_id(id):
-        # TODO: use {name_title}Repository.get_by_id(id)
-        return None
-
-    @staticmethod
-    def create(data: dict):
-        # TODO: use {name_title}Repository.save(instance)
-        pass
-
-    @staticmethod
-    def update(id, data: dict):
-        # TODO: use {name_title}Repository.save(instance)
-        pass
-
-    @staticmethod
-    def delete(id):
-        # TODO: use {name_title}Repository.delete(instance)
-        pass
-"""
+from flasktool.utils import (
+    _name_parts,
+    _write_file,
+    _write_service_init,
+    _view_service_template,
+    _api_service_template,
+)
 
 
 # =====================================================================
