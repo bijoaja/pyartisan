@@ -1,14 +1,17 @@
 [project]
-name = "flaskartisan"
-version = "0.1.0"
-description = "A CLI tool similar to Laravel Artisan for Flask"
+name = "pyartisan"
+version = "1.0.0"
+description = "AI-powered Python Web Development Toolkit — Artisan-like CLI for Flask, FastAPI, and beyond"
 requires-python = ">=3.10"
 dependencies = [
     "click",
     "flask",
     "sqlalchemy",
-    "gitpython",
+    "tomli; python_version < '3.11'",
 ]
 
 [project.scripts]
-flasktool = "flasktool.cli:cli"
+pyartisan = "pyartisan.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
