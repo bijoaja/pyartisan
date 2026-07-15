@@ -1,21 +1,22 @@
-# FlaskArtisan
+# PyArtisan
 
-FlaskArtisan is a command-line tool inspired by Laravel Artisan,
-designed to streamline development workflows in Flask applications. It
-provides a convenient CLI interface to scaffold controllers, services,
-repositories, and models; manage database migrations; and spin up dev
-servers — all following the [FlaskIQ](https://github.com/bijoaja/flaskiq)
-project conventions.
+PyArtisan is an AI-powered, multi-framework Python web development toolkit,
+inspired by Laravel Artisan. It provides a single CLI (`pyartisan`) that
+detects your project's framework and dispatches to the right generator —
+starting with full support for Flask (via the [FlaskIQ](https://github.com/bijoaja/flaskiq)
+project conventions), with FastAPI wired in as a structural placeholder for
+a future release.
 
 ## Features
 
-- Artisan-like CLI commands for Flask
-- Full 5-layer scaffold: Routes → Controller → Service → Repository → Model
+- Artisan-like CLI, framework-agnostic core with per-framework plugins
+- Automatic framework detection (Flask now, FastAPI/Django planned)
+- Full 5-layer Flask scaffold: Routes → Controller → Service → Repository → Model
 - Auto install dependencies on project init
 - Database migrations via Flask-Migrate
 - Docker support for dev and production environments
-- Integrates with SQLAlchemy
-- Git automation powered by GitPython
+- Persistent config at `~/.pyartisan/config.toml`
+- `doctor` command to check your local dev environment
 - Python 3.10+ support
 
 ## Installation
@@ -34,22 +35,42 @@ pip install -e .
 - Flask
 - SQLAlchemy
 - Click
-- GitPython
 
 ## Usage
 
-FlaskArtisan registers the `flasktool` command. Run anywhere inside your project.
+PyArtisan registers the `pyartisan` command. Run anywhere inside your project.
 
 ```bash
-flasktool --help
+pyartisan --help
 ```
 
 ### Initialize a new project
 
-Clones the FlaskIQ template and optionally sets up a virtual environment:
+```bash
+pyartisan init flask myapp
+```
+
+Clones the FlaskIQ template and optionally sets up a virtual environment.
+
+FastAPI isn't implemented yet (`pyartisan init fastapi api` will report it's
+not supported); use `pyartisan fastapi status` to check its placeholder state.
+
+### Framework detection
+
+Most commands below auto-detect the framework from files in the current
+directory (`app.py` + `Flask(`/`create_app(` for Flask, `main.py` + `FastAPI(`
+for FastAPI). If detection fails, pass `--framework` explicitly:
 
 ```bash
-flasktool init:project my_app
+pyartisan make:model Post --framework flask
+```
+
+If no framework can be detected and `--framework` isn't given:
+
+```
+Project framework cannot be detected.
+Please specify:
+  --framework flask
 ```
 
 ### Scaffold a controller
@@ -58,23 +79,23 @@ Generates a controller, service, and route file for the given feature.
 
 ```bash
 # View controller (HTML responses)
-flasktool make:controller Post --type view
+pyartisan make:controller Post --type view
 
 # API controller (JSON responses, versioned)
-flasktool make:controller Post --type api
+pyartisan make:controller Post --type api
 
 # Fullstack (view + API in one command)
-flasktool make:controller Post --type fullstack
+pyartisan make:controller Post --type fullstack
 
 # Specify API version (default: 1)
-flasktool make:controller Post --type api --version 2
+pyartisan make:controller Post --type api --version 2
 ```
 
 ### Scaffold a standalone service
 
 ```bash
-flasktool make:service Post --type view
-flasktool make:service Post --type api
+pyartisan make:service Post --type view
+pyartisan make:service Post --type api
 ```
 
 ### Scaffold a model
@@ -82,7 +103,7 @@ flasktool make:service Post --type api
 Generates a separate model file with `to_dict()` and updates `app/model/__init__.py`:
 
 ```bash
-flasktool make:model Post
+pyartisan make:model Post
 ```
 
 ### Scaffold a repository
@@ -90,17 +111,17 @@ flasktool make:model Post
 Generates a data-access repository class and updates `app/repository/__init__.py`:
 
 ```bash
-flasktool make:repository Post
+pyartisan make:repository Post
 ```
 
 ### Database migrations
 
 ```bash
 # Create a migration
-flasktool make:migrations -m "add posts table"
+pyartisan make:migrations -m "add posts table"
 
 # Create and immediately apply
-flasktool make:migrations -m "add posts table" --upgrade
+pyartisan make:migrations -m "add posts table" --upgrade
 ```
 
 ### Generate Docker files
@@ -108,13 +129,13 @@ flasktool make:migrations -m "add posts table" --upgrade
 Creates `Docker/Dockerfile` (prod), `Docker/Dockerfile.dev`, and `docker-compose.yml`:
 
 ```bash
-flasktool make:docker
+pyartisan make:docker
 ```
 
 ### Copy environment file
 
 ```bash
-flasktool make:env
+pyartisan make:env
 ```
 
 ### Run the dev server
@@ -122,28 +143,51 @@ flasktool make:env
 **Local** (requires active virtual environment and `server.py`):
 
 ```bash
-flasktool serve
+pyartisan serve
 ```
 
 **Docker** (requires `Docker/Dockerfile.dev` and `docker-compose.yml`):
 
 ```bash
 # Start containers
-flasktool serve --docker
+pyartisan serve --docker
 
 # Start and rebuild image
-flasktool serve --docker --build
+pyartisan serve --docker --build
 ```
 
 ### Build production Docker image
 
 ```bash
-flasktool build
+pyartisan build
+```
+
+### Configuration
+
+```bash
+pyartisan config          # same as config show
+pyartisan config show
+pyartisan config set default_framework fastapi
+pyartisan config reset
+```
+
+### Doctor
+
+Checks Python, pip, Git, and virtual environment health:
+
+```bash
+pyartisan doctor
+```
+
+### Version
+
+```bash
+pyartisan version
 ```
 
 ## Generated Project Structure
 
-Running FlaskArtisan commands inside a FlaskIQ project produces:
+Running PyArtisan's Flask commands inside a FlaskIQ project produces:
 
 ```
 project_name/
@@ -195,7 +239,11 @@ project_name/
 
 ## Architecture
 
-FlaskArtisan scaffolds code that follows the FlaskIQ 5-layer architecture:
+PyArtisan is a framework-agnostic core CLI that dispatches to per-framework
+plugins. See `CLAUDE.md` for the full breakdown of `src/pyartisan/` (core),
+`src/flasktool/` (Flask plugin), and `src/fastapitool/` (FastAPI placeholder).
+
+Generated Flask code follows the FlaskIQ 5-layer architecture:
 
 ```
 HTTP Request → Routes → Controller → Service → Repository → Model
@@ -211,10 +259,19 @@ HTTP Request → Routes → Controller → Service → Repository → Model
 
 ## Configuration
 
-`flasktool` is registered as a script entry point:
+`pyartisan` is registered as a script entry point:
 
 ```
-flasktool = "flasktool.cli:cli"
+pyartisan = "pyartisan.cli:cli"
+```
+
+Persistent user config lives at `~/.pyartisan/config.toml`:
+
+```toml
+theme = "default"
+author = ""
+license = "MIT"
+default_framework = "flask"
 ```
 
 ## Contributing
