@@ -6,7 +6,7 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
-from pyartisan.exceptions import ConfigError
+from pyartisan.core.exceptions import ConfigError
 
 CONFIG_DIR = Path.home() / ".pyartisan"
 CONFIG_PATH = CONFIG_DIR / "config.toml"
@@ -16,6 +16,10 @@ DEFAULT_CONFIG = {
     "author": "",
     "license": "MIT",
     "default_framework": "flask",
+    "templates": {
+        "flask": "https://github.com/bijoaja/flaskiq.git",
+        "fastapi": "https://github.com/bijoaja/fastiq.git",
+    }
 }
 
 
@@ -25,7 +29,14 @@ def _dump_toml(data: dict) -> str:
     unnecessary."""
     lines = []
     for key, value in data.items():
-        if isinstance(value, str):
+        if isinstance(value, dict):
+            # Write nested table for templates map
+            lines.append(f"[{key}]")
+            for sub_k, sub_v in value.items():
+                escaped = sub_v.replace("\\", "\\\\").replace('"', '\\"')
+                lines.append(f'{sub_k} = "{escaped}"')
+            lines.append("")
+        elif isinstance(value, str):
             escaped = value.replace("\\", "\\\\").replace('"', '\\"')
             lines.append(f'{key} = "{escaped}"')
         elif isinstance(value, bool):

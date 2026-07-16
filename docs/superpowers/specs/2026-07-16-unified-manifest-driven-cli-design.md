@@ -182,7 +182,11 @@ Format spasi (bukan colon), sesuai `CLI-EXAMPLE.md`:
   3. else → pesan saran: "No docker-compose.yml and no active venv. Run `pyartisan make docker`
      or activate a virtualenv."
 - `pyartisan build` — jalankan `manifest["scripts"]["build"]` via subprocess (butuh manifest +
-  scripts.build ada, else error jelas).
+  scripts.build ada, else error jelas). Ini command lifecycle terpisah dari `make docker`:
+  `make docker` (generator) menulis `Dockerfile`/`docker-compose.yml` ke disk dari stub;
+  `build` (script) menjalankan `docker build`/`gunicorn` memakai file yang sudah ada. Keduanya
+  tidak saling memanggil satu sama lain di engine — urutan pemakaian normal adalah
+  `make docker` sekali lalu `build`/`serve` berkali-kali.
 - `pyartisan config`, `pyartisan doctor`, `pyartisan version` — tidak berubah.
 
 **Di luar scope sesi ini** (didesain terpisah nanti): `pyartisan make docker`/`make env`/

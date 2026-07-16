@@ -1,17 +1,29 @@
 import os
+import shutil
 
 from pyartisan.utils import console
 
 
-def write_file(path: str, content: str) -> None:
-    """Write file only if it does not already exist. Creates parent dirs."""
-    if os.path.exists(path):
+def write_file(path: str, content: str, overwrite: bool = False) -> None:
+    """Write file, creating parent dirs. Skips existing files unless overwrite=True."""
+    if os.path.exists(path) and not overwrite:
         console.warn(f"skipped (already exists): {path}")
         return
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w") as f:
         f.write(content)
     console.success(f"created: {path}")
+
+
+def copy_file(src: str, dst: str, skip_if_exists: bool = True) -> bool:
+    """Copy `src` to `dst`. Returns False (skip) if dst exists and skip_if_exists=True."""
+    if skip_if_exists and os.path.exists(dst):
+        console.warn(f"skipped (already exists): {dst}")
+        return False
+    os.makedirs(os.path.dirname(dst) or ".", exist_ok=True)
+    shutil.copyfile(src, dst)
+    console.success(f"created: {dst}")
+    return True
 
 
 def write_controller_init(dir_path: str, file_stem: str, class_name: str) -> None:

@@ -239,9 +239,11 @@ project_name/
 
 ## Architecture
 
-PyArtisan is a framework-agnostic core CLI that dispatches to per-framework
-plugins. See `CLAUDE.md` for the full breakdown of `src/pyartisan/` (core),
-`src/flasktool/` (Flask plugin), and `src/fastapitool/` (FastAPI placeholder).
+PyArtisan is a single package (`src/pyartisan/`) — a framework-agnostic
+engine whose thin `cli/` parser dispatches, via `core/engine.py`, to
+built-in framework plugins living under `pyartisan/plugin/` (`plugin/flask/`,
+`plugin/fastapi/`). There are no separate top-level packages per framework.
+See `CLAUDE.md` for the full directory breakdown.
 
 Generated Flask code follows the FlaskIQ 5-layer architecture:
 

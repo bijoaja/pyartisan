@@ -8,6 +8,8 @@ dependencies = [
     "flask",
     "sqlalchemy",
     "tomli; python_version < '3.11'",
+    "jinja2",
+    "pyyaml",
 ]
 
 [project.scripts]

@@ -116,28 +116,32 @@ pyartisan/
 
 ├── src/
 │
-├── pyartisan/
-│   │
-│   ├── cli.py
-│   ├── config.py
-│   ├── plugin_loader.py
-│   ├── context.py
-│   ├── exceptions.py
-│   │
-│   ├── core/
-│   │
-│   ├── utils/
-│   │
-│   ├── templates/
-│   │
-│   └── shared/
-│
-├── flasktool/
-│   ├── commands/
-│
-└── fastapitool/
-    ├── commands/
+└── pyartisan/
+    │
+    ├── cli/                  # thin click parser only
+    │
+    ├── core/                 # engine.py (dispatch), context.py, detector.py, exceptions.py
+    │
+    ├── plugin/                # base.py (kontrak), registry.py (loader)
+    │   ├── flask/              # plugin bawaan Flask
+    │   │   └── commands/
+    │   └── fastapi/            # plugin bawaan FastAPI (structure only, v1)
+    │       └── commands/
+    │
+    ├── project/               # Project API (placeholder v1)
+    │
+    ├── renderer/               # Jinja2 template engine (placeholder v1)
+    │
+    ├── marketplace/            # plugin marketplace (di luar scope v1)
+    │
+    ├── config/
+    │
+    ├── utils/
+    │
+    └── shared/
 ```
+
+Tidak ada lagi package top-level terpisah per framework (`flasktool/`, `fastapitool/`) — semua plugin framework konkret hidup nested di dalam `pyartisan/plugin/`.
 
 ---
 
@@ -379,7 +383,7 @@ Shared.
 # 13. Template Management
 
 ```
-Template di clone dari repository github (seperti konsep pada flasktool/command/init_project)
+Template di clone dari repository github (seperti konsep pada pyartisan/plugin/flask/commands/init_project)
 ```
 
 Framework hanya membaca template miliknya.
