@@ -91,7 +91,7 @@ def dispatch_new(framework: str, project_name: str) -> None:
     click.echo("   pyartisan serve\n")
 
 
-def dispatch_make(target: str, name: str, force: bool = False) -> None:
+def dispatch_make(target: str, name: str, force: bool = False, **extra_options) -> None:
     """Process file generation using manifest.yaml configuration."""
     cwd = Path.cwd()
     manifest = load_manifest(cwd)
@@ -111,8 +111,6 @@ def dispatch_make(target: str, name: str, force: bool = False) -> None:
         raise ManifestError(f"Generator '{target}' configuration must specify 'stub' and 'path' keys.")
 
     stub_dir = cwd / ".pyartisan" / stub_rel
-    if not stub_dir.exists():
-        raise ManifestError(f"Stub directory not found on disk: {stub_dir}")
 
     dest_path_rel = manifest.get("paths", {}).get(path_key)
     if not dest_path_rel:
@@ -128,7 +126,26 @@ def dispatch_make(target: str, name: str, force: bool = False) -> None:
         "name_title": name_title,
         "name_snake": name_snake,
         "name_plural": name_plural,
+        "type": extra_options.get("type", "view"),
+        "version": extra_options.get("version", "1"),
+        **extra_options
     }
+
+    # Evaluate dynamic stub_subpath if defined
+    from jinja2 import Environment
+    if "stub_subpath" in gen_config:
+        subpath_template = gen_config["stub_subpath"]
+        rendered_subpath = Environment().from_string(subpath_template).render(context)
+        stub_dir = stub_dir / rendered_subpath
+
+    if not stub_dir.exists():
+        raise ManifestError(f"Stub directory not found on disk: {stub_dir}")
+
+    # Evaluate dynamic dest if defined
+    if "dest" in gen_config:
+        dest_template = gen_config["dest"]
+        rendered_dest = Environment().from_string(dest_template).render(context)
+        dest_dir = dest_dir / rendered_dest
 
     click.echo(f"Scaffolding '{name_title}' ({target}) ...")
     render_stub(stub_dir, dest_dir, context, force=force)
@@ -143,7 +160,6 @@ def dispatch_make(target: str, name: str, force: bool = False) -> None:
             raise ManifestError(f"Registration configuration for '{target}' is missing 'type' or 'target'.")
 
         # Render target path
-        from jinja2 import Environment
         target_file_rel = Environment().from_string(target_template).render(
             path=dest_path_rel, **context
         )

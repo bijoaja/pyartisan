@@ -166,26 +166,28 @@ def test_cli_generic_make():
             "generators": {
                 "model": {
                     "stub": "stubs/model",
+                    "stub_subpath": "{{type}}",
                     "path": "model",
+                    "dest": "nested_{{type}}",
                     "registration": {
                         "type": "import_list",
-                        "target": "{{path}}/__init__.py"
+                        "target": "{{path}}/nested_{{type}}/__init__.py"
                     }
                 }
             }
         }
         (manifest_dir / "manifest.yaml").write_text(yaml.dump(manifest_data))
 
-        stub_dir = manifest_dir / "stubs" / "model"
+        stub_dir = manifest_dir / "stubs" / "model" / "api"
         stub_dir.mkdir(parents=True)
         (stub_dir / "{{name_lower}}.py.jinja").write_text("class {{name_title}}:\n    pass\n")
 
-        result = runner.invoke(cli, ["make", "model", "Post"])
+        result = runner.invoke(cli, ["make", "model", "Post", "--type", "api"])
         assert result.exit_code == 0, result.output
         assert "Scaffolding" in result.output
 
-        model_file = root / "app" / "model" / "post.py"
-        init_file = root / "app" / "model" / "__init__.py"
+        model_file = root / "app" / "model" / "nested_api" / "post.py"
+        init_file = root / "app" / "model" / "nested_api" / "__init__.py"
         assert model_file.exists()
         assert model_file.read_text() == "class Post:\n    pass\n"
         assert init_file.exists()

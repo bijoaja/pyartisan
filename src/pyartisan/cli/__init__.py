@@ -26,14 +26,27 @@ def new_cmd(framework: str, name: str) -> None:
         sys.exit(1)
 
 
-@cli.command(name="make")
+@cli.command(name="make", context_settings={"ignore_unknown_options": True, "allow_extra_args": True})
 @click.argument("target")
 @click.argument("name")
 @click.option("--force", is_flag=True, default=False, help="Overwrite existing files")
-def make_cmd(target: str, name: str, force: bool) -> None:
+@click.pass_context
+def make_cmd(ctx, target: str, name: str, force: bool) -> None:
     """Scaffold files from template stubs (e.g. make controller Post)."""
+    # Parse dynamic extra args: e.g. --type api --version 2
+    extra_options = {}
+    it = iter(ctx.args)
+    for item in it:
+        if item.startswith("--"):
+            # Strip '--' and replace '-' with '_' for context keys
+            key = item[2:].replace("-", "_")
+            try:
+                val = next(it)
+                extra_options[key] = val
+            except StopIteration:
+                extra_options[key] = True  # boolean flag fallback
     try:
-        engine.dispatch_make(target, name, force=force)
+        engine.dispatch_make(target, name, force=force, **extra_options)
     except PyArtisanError as e:
         click.echo(f"❌ {e}")
         sys.exit(1)
