@@ -14,8 +14,8 @@ def apply_registration(
     os.makedirs(target_file.parent, exist_ok=True)
 
     # Variable context unpack
-    name_lower = context["name_lower"]
-    name_title = context["name_title"]
+    name_lower = context.get("name_lower", "")
+    name_title = context.get("name_title", "")
 
     if reg_type == "import_list":
         # Strategy 1: import_list (mirror pyartisan.utils.fs.write_service_init)

@@ -104,7 +104,13 @@ def test_registration_marker():
         root = Path(d)
         target = root / "main.py"
         target.write_text("app = FastAPI()\n# pyartisan:routers\n")
-        context = {"name_lower": "post"}
+        context = {
+            "name": "Post",
+            "name_lower": "post",
+            "name_title": "Post",
+            "name_snake": "post",
+            "name_plural": "posts",
+        }
 
         apply_registration(
             "marker",
@@ -163,7 +169,7 @@ def test_cli_generic_make():
                     "path": "model",
                     "registration": {
                         "type": "import_list",
-                        "target": "{path}/__init__.py"
+                        "target": "{{path}}/__init__.py"
                     }
                 }
             }

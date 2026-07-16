@@ -4,6 +4,7 @@ import click
 from pyartisan import __version__
 from pyartisan import config as config_module
 from pyartisan.core import engine
+from pyartisan.core.exceptions import PyArtisanError
 from pyartisan.shared.doctor import run_checks
 
 
@@ -18,7 +19,11 @@ def cli():
 @click.argument("name")
 def new_cmd(framework: str, name: str) -> None:
     """Create a new project using framework template."""
-    engine.dispatch_new(framework, name)
+    try:
+        engine.dispatch_new(framework, name)
+    except PyArtisanError as e:
+        click.echo(f"❌ {e}")
+        sys.exit(1)
 
 
 @cli.command(name="make")
@@ -27,19 +32,31 @@ def new_cmd(framework: str, name: str) -> None:
 @click.option("--force", is_flag=True, default=False, help="Overwrite existing files")
 def make_cmd(target: str, name: str, force: bool) -> None:
     """Scaffold files from template stubs (e.g. make controller Post)."""
-    engine.dispatch_make(target, name, force=force)
+    try:
+        engine.dispatch_make(target, name, force=force)
+    except PyArtisanError as e:
+        click.echo(f"❌ {e}")
+        sys.exit(1)
 
 
 @cli.command(name="serve")
 def serve_cmd() -> None:
     """Run dev server (Docker fallback to local virtualenv)."""
-    engine.dispatch_serve()
+    try:
+        engine.dispatch_serve()
+    except PyArtisanError as e:
+        click.echo(f"❌ {e}")
+        sys.exit(1)
 
 
 @cli.command(name="build")
 def build_cmd() -> None:
     """Build production artifact using manifest build script."""
-    engine.dispatch_build()
+    try:
+        engine.dispatch_build()
+    except PyArtisanError as e:
+        click.echo(f"❌ {e}")
+        sys.exit(1)
 
 
 @cli.group(name="config", invoke_without_command=True)

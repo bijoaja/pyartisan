@@ -11,7 +11,10 @@ def render_stub(stub_dir: Path, dest_dir: Path, context: dict, force: bool = Fal
 
     rendered_files = []
     # Setup Jinja environment
-    env = Environment(loader=FileSystemLoader(str(stub_dir)))
+    env = Environment(
+        loader=FileSystemLoader(str(stub_dir)),
+        keep_trailing_newline=True
+    )
 
     # Render file names and contents
     for root, _, files in os.walk(stub_dir):
