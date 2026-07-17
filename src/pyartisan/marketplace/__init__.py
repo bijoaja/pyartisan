@@ -81,6 +81,47 @@ def _verify_blockchain_license(plugin_id: str, license_key: str) -> bool:
     return False
 
 
+def _resolve_plugin_version(plugin_root: Path) -> str:
+    """Pilih versi terpasang: 'dev' (symlink lokal) diprioritaskan, jika tidak versi tertinggi."""
+    version_dirs = sorted(d.name for d in plugin_root.iterdir() if d.is_dir())
+    if "dev" in version_dirs:
+        return "dev"
+    if version_dirs:
+        return _latest_version(version_dirs)
+    return None
+
+
+def _find_registry_dir(plugins_registry: Path, plugin_id: str, version: str) -> Path:
+    """Temukan folder registry plugin sebenarnya.
+
+    Folder registry lokal (--local) selalu bernama 'dev', walaupun manifest-nya
+    mendeklarasikan versi semantik (mis. 1.0.0). Jadi jika folder versi persis
+    tidak ada, coba 'dev', lalu versi tertinggi yang tersedia.
+    """
+    plugin_root = plugins_registry / plugin_id
+    exact = plugin_root / version if version else None
+    if exact and exact.exists():
+        return exact
+    if (plugin_root / "dev").exists():
+        return plugin_root / "dev"
+    if plugin_root.exists():
+        fallback_version = _resolve_plugin_version(plugin_root)
+        if fallback_version:
+            return plugin_root / fallback_version
+    return plugin_root / (version or "dev")
+
+
+def _version_key(version: str):
+    return tuple(int(part) if part.isdigit() else part for part in version.split("."))
+
+
+def _latest_version(versions: list) -> str:
+    numeric = [v for v in versions if v != "dev"]
+    if not numeric:
+        return versions[-1]
+    return sorted(numeric, key=_version_key)[-1]
+
+
 @click.group(name="plugin")
 def plugin_group():
     """Manage PyArtisan plugins (community & marketplace)"""
@@ -181,13 +222,8 @@ def apply_cmd(name: str):
         click.echo(f"❌ Plugin '{name}' not found in registry. Run `pyartisan plugin install {name}` first.")
         return
 
-    # Versi 'dev' (symlink lokal) diprioritaskan; jika tidak, pilih versi terbaru.
-    version_dirs = sorted(d.name for d in plugin_root.iterdir() if d.is_dir())
-    if "dev" in version_dirs:
-        version = "dev"
-    elif version_dirs:
-        version = version_dirs[-1]
-    else:
+    version = _resolve_plugin_version(plugin_root)
+    if not version:
         click.echo(f"❌ No installed version found for plugin '{name}'.")
         return
 
@@ -307,7 +343,7 @@ def remove_cmd(names, remove_all):
 
     for p in to_remove:
         plugin_id, _, version = p.partition("@")
-        plugin_dir = plugins_registry / plugin_id / (version or "dev")
+        plugin_dir = _find_registry_dir(plugins_registry, plugin_id, version)
 
         if plugin_dir.exists():
             hooks_module = _load_hooks(plugin_dir)
@@ -364,10 +400,54 @@ def uninstall_cmd(names, uninstall_all):
         click.echo(f"✔ Uninstalled '{plugin_id}' from registry.")
 
 
+def _check_updates():
+    """Show available updates for git-based plugins in the global registry."""
+    plugins_registry = _plugins_registry()
+    found_any = False
+
+    for plugin_root in sorted(plugins_registry.iterdir()):
+        if not plugin_root.is_dir():
+            continue
+        for version_dir in sorted(plugin_root.iterdir()):
+            if version_dir.name == "dev" or not (version_dir / ".git").exists():
+                continue
+
+            found_any = True
+            try:
+                local_head = subprocess.run(
+                    ["git", "-C", str(version_dir), "rev-parse", "HEAD"],
+                    check=True, capture_output=True, text=True
+                ).stdout.strip()
+                subprocess.run(
+                    ["git", "-C", str(version_dir), "fetch"],
+                    check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                )
+                remote_head = subprocess.run(
+                    ["git", "-C", str(version_dir), "rev-parse", "@{u}"],
+                    check=True, capture_output=True, text=True
+                ).stdout.strip()
+            except Exception:
+                click.echo(f"{plugin_root.name}@{version_dir.name}: cannot check (offline or no upstream)")
+                continue
+
+            if local_head != remote_head:
+                click.echo(f"{plugin_root.name}@{version_dir.name}: Update available (run `pyartisan plugin update {plugin_root.name}`)")
+            else:
+                click.echo(f"{plugin_root.name}@{version_dir.name}: Up to date")
+
+    if not found_any:
+        click.echo("No git-based plugins in registry to check.")
+
+
 @plugin_group.command(name="list")
 @click.option("--global", "show_global", is_flag=True, help="List plugins downloaded in the global registry")
-def list_cmd(show_global):
-    """List plugins (project-scoped by default, or --global for the registry)."""
+@click.option("--updates", "show_updates", is_flag=True, help="Check for available updates on git-based registry plugins")
+def list_cmd(show_global, show_updates):
+    """List plugins (project-scoped by default, --global for the registry, --updates to check versions)."""
+    if show_updates:
+        _check_updates()
+        return
+
     if show_global:
         plugins_registry = _plugins_registry()
         found = False
@@ -398,3 +478,143 @@ def list_cmd(show_global):
     click.echo("Project Plugins:")
     for p in plugins:
         click.echo(f"✔ {p}")
+
+
+@plugin_group.command(name="info")
+@click.argument("name")
+def info_cmd(name: str):
+    """Show detailed metadata for a plugin in the global registry."""
+    plugins_registry = _plugins_registry()
+    plugin_root = plugins_registry / name
+    if not plugin_root.exists():
+        click.echo(f"❌ Plugin '{name}' not found in registry.")
+        return
+
+    version = _resolve_plugin_version(plugin_root)
+    if not version:
+        click.echo(f"❌ No installed version found for plugin '{name}'.")
+        return
+
+    manifest_file = plugin_root / version / "manifest.yaml"
+    if not manifest_file.exists():
+        click.echo("❌ Plugin is missing manifest.yaml.")
+        return
+
+    manifest = load_plugin_yaml(manifest_file)
+    click.echo(f"Name         : {manifest.get('name', name)}")
+    click.echo(f"ID           : {manifest.get('id', name)}")
+    click.echo(f"Version      : {manifest.get('version', version)}")
+    click.echo(f"Description  : {manifest.get('description', '-')}")
+    click.echo(f"Author       : {manifest.get('author', '-')}")
+
+    deps = manifest.get("dependencies", {}).get("pip", [])
+    click.echo(f"Dependencies : {', '.join(deps) if deps else '-'}")
+
+    env_vars = manifest.get("environment", [])
+    click.echo(f"Environment  : {', '.join(env_vars) if env_vars else '-'}")
+
+    usages = _all_usages(plugins_registry, name)
+    click.echo(f"Used by      : {', '.join(usages) if usages else '(not applied to any project)'}")
+
+
+@plugin_group.command(name="status")
+def status_cmd():
+    """Show plugin health status for the current project."""
+    cwd = Path.cwd()
+    project_yaml_file = cwd / ".pyartisan" / "project.yaml"
+    if not project_yaml_file.exists():
+        click.echo("❌ Error: Not a pyartisan project.")
+        return
+
+    project_config = load_plugin_yaml(project_yaml_file)
+    click.echo(f"Project    : {project_config.get('project', {}).get('name', '-')}")
+    click.echo(f"Framework  : {project_config.get('framework', {}).get('name', '-')}")
+
+    plugins = project_config.get("plugins", [])
+    if not plugins:
+        click.echo("Plugins    : (none installed)")
+        return
+
+    plugins_registry = _plugins_registry()
+    click.echo("Plugins:")
+    all_ok = True
+    for p in plugins:
+        plugin_id, _, version = p.partition("@")
+        plugin_dir = _find_registry_dir(plugins_registry, plugin_id, version)
+        if plugin_dir.exists() and (plugin_dir / "manifest.yaml").exists():
+            click.echo(f"✔ {p}")
+        else:
+            click.echo(f"✖ {p} (missing from registry)")
+            all_ok = False
+
+    click.echo(f"Health     : {'OK' if all_ok else 'ISSUES FOUND'}")
+
+
+@plugin_group.command(name="doctor")
+def doctor_cmd():
+    """Diagnose plugin setup issues for the current project."""
+    cwd = Path.cwd()
+    project_yaml_file = cwd / ".pyartisan" / "project.yaml"
+    if not project_yaml_file.exists():
+        click.echo("❌ Error: Not a pyartisan project.")
+        return
+
+    project_config = load_plugin_yaml(project_yaml_file)
+    all_ok = True
+
+    if "framework" in project_config and "name" in project_config["framework"]:
+        click.echo("✔ Manifest")
+    else:
+        click.echo("✖ Manifest (missing framework.name)")
+        all_ok = False
+
+    try:
+        project_ctx = ProjectContext(cwd)
+        click.echo("✔ Framework")
+    except Exception as e:
+        click.echo(f"✖ Framework ({e})")
+        all_ok = False
+        project_ctx = None
+
+    if project_ctx is not None:
+        if project_ctx.template_config:
+            click.echo("✔ Template Metadata")
+        else:
+            click.echo("✖ Template Metadata (template.yaml not found in registry)")
+            all_ok = False
+
+    plugins_registry = _plugins_registry()
+    plugins = project_config.get("plugins", [])
+    for p in plugins:
+        plugin_id, _, version = p.partition("@")
+        plugin_dir = _find_registry_dir(plugins_registry, plugin_id, version)
+        manifest_file = plugin_dir / "manifest.yaml"
+        if not manifest_file.exists():
+            click.echo(f"✖ Dependencies ({plugin_id}: manifest.yaml missing)")
+            all_ok = False
+            continue
+        manifest = load_plugin_yaml(manifest_file)
+        deps = manifest.get("dependencies", {}).get("pip", [])
+        req_file = cwd / "requirements.txt"
+        req_content = req_file.read_text() if req_file.exists() else ""
+        missing = [d for d in deps if d not in req_content]
+        if missing:
+            click.echo(f"✖ Dependencies ({plugin_id}: missing {', '.join(missing)} in requirements.txt)")
+            all_ok = False
+        else:
+            click.echo(f"✔ Dependencies ({plugin_id})")
+
+    if project_ctx is not None:
+        marker_cfg = project_ctx.template_config.get("markers", {}).get("routers", {})
+        target_file_rel = marker_cfg.get("file")
+        marker = marker_cfg.get("marker")
+        if target_file_rel and marker:
+            target_file = cwd / target_file_rel
+            if target_file.exists() and marker in target_file.read_text():
+                click.echo("✔ Marker")
+            else:
+                click.echo(f"✖ Marker ({marker} not found in {target_file_rel})")
+                all_ok = False
+
+    click.echo()
+    click.echo("Plugin is valid" if all_ok else "Plugin has issues, see above.")

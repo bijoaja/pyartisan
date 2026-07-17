@@ -549,6 +549,107 @@ def test_cli_plugin_remove_multi_and_all():
     print("OK  cli_plugin_remove_multi_and_all")
 
 
+def test_cli_plugin_info_status_doctor():
+    runner = CliRunner()
+    with runner.isolated_filesystem() as tmp_dir:
+        root = Path(tmp_dir)
+        pyartisan_dir, home_dir = _setup_plugin_project(root)
+
+        plugin_src_dir = root / "my-plugin"
+        plugin_src_dir.mkdir()
+        manifest_content = {
+            "id": "myplugin",
+            "name": "My Local Plugin",
+            "version": "1.0.0",
+            "description": "Plugin uji coba",
+            "author": "Tester",
+            "dependencies": {"pip": ["httpx"]},
+            "environment": ["MY_PLUGIN_KEY"]
+        }
+        with open(plugin_src_dir / "manifest.yaml", "w") as f:
+            yaml.dump(manifest_content, f)
+
+        import os
+        orig_expanduser = os.path.expanduser
+        os.path.expanduser = lambda path: str(home_dir) if path == "~" else orig_expanduser(path)
+        orig_cwd = os.getcwd()
+
+        try:
+            os.chdir(root)
+
+            # plugin belum di-install: info gagal
+            result = runner.invoke(cli, ["plugin", "info", "myplugin"])
+            assert "not found in registry" in result.output.lower()
+
+            # install + apply
+            result = runner.invoke(cli, ["plugin", "install", "myplugin", "--local", str(plugin_src_dir)])
+            assert result.exit_code == 0, result.output
+
+            # info sebelum apply: "Used by" kosong
+            result = runner.invoke(cli, ["plugin", "info", "myplugin"])
+            assert result.exit_code == 0, result.output
+            assert "my local plugin" in result.output.lower()
+            assert "httpx" in result.output
+            assert "my_plugin_key" in result.output.lower()
+            assert "not applied to any project" in result.output.lower()
+
+            result = runner.invoke(cli, ["plugin", "apply", "myplugin"])
+            assert result.exit_code == 0, result.output
+
+            # info setelah apply: "Used by" berisi path project
+            result = runner.invoke(cli, ["plugin", "info", "myplugin"])
+            assert str(root) in result.output
+
+            # status: project sehat karena plugin ada di registry
+            result = runner.invoke(cli, ["plugin", "status"])
+            assert result.exit_code == 0, result.output
+            assert "myplugin@1.0.0" in result.output
+            assert "health     : ok" in result.output.lower()
+
+            # doctor: semua check lolos
+            result = runner.invoke(cli, ["plugin", "doctor"])
+            assert result.exit_code == 0, result.output
+            assert "plugin is valid" in result.output.lower()
+
+            # doctor mendeteksi dependency belum ditambahkan ke requirements.txt
+            (root / "requirements.txt").write_text("fastapi\n")
+            result = runner.invoke(cli, ["plugin", "doctor"])
+            assert "missing httpx" in result.output.lower()
+            assert "plugin has issues" in result.output.lower()
+
+        finally:
+            os.path.expanduser = orig_expanduser
+            os.chdir(orig_cwd)
+
+    print("OK  cli_plugin_info_status_doctor")
+
+
+def test_cli_plugin_list_updates():
+    runner = CliRunner()
+    with runner.isolated_filesystem() as tmp_dir:
+        root = Path(tmp_dir)
+        _pyartisan_dir, home_dir = _setup_plugin_project(root)
+
+        import os
+        orig_expanduser = os.path.expanduser
+        os.path.expanduser = lambda path: str(home_dir) if path == "~" else orig_expanduser(path)
+        orig_cwd = os.getcwd()
+
+        try:
+            os.chdir(root)
+
+            # Tidak ada plugin git-based di registry
+            result = runner.invoke(cli, ["plugin", "list", "--updates"])
+            assert result.exit_code == 0, result.output
+            assert "no git-based plugins in registry" in result.output.lower()
+
+        finally:
+            os.path.expanduser = orig_expanduser
+            os.chdir(orig_cwd)
+
+    print("OK  cli_plugin_list_updates")
+
+
 def main():
     test_name_parts()
     test_manifest_load()
@@ -564,6 +665,8 @@ def main():
     test_cli_plugin_lifecycle()
     test_cli_plugin_install_blockchain_license()
     test_cli_plugin_remove_multi_and_all()
+    test_cli_plugin_info_status_doctor()
+    test_cli_plugin_list_updates()
     print("\nALL SMOKE TESTS PASSED")
 
 

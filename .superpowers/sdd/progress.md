@@ -20,3 +20,4 @@ Sistem Plugin PyArtisan (Komunitas & Marketplace):
 - [x] Task 3: Fitur CLI pyartisan plugin install (complete, commit b5bbc62)
 - [x] Task 4: Fitur CLI pyartisan plugin list & uninstall (single/multi/all)
 - [x] Task 5: Perluas ke lifecycle penuh package-manager (install/apply/update/remove/uninstall) + usage tracking lintas project di registry global
+- [x] Task 6: Tambah plugin info, plugin status, plugin doctor, plugin list --updates (+ fix resolusi folder registry versi 'dev' vs versi manifest)
