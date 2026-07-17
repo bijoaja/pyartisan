@@ -344,44 +344,51 @@ def test_project_context_ops():
     print("OK  project_context_ops")
 
 
-def test_cli_plugin_install():
+def _setup_plugin_project(root: Path):
+    """Helper: bangun struktur project + home + template.yaml + main.py untuk test plugin CLI."""
+    pyartisan_dir = root / ".pyartisan"
+    pyartisan_dir.mkdir()
+    project_yaml_content = {
+        "project": {"name": "sandbox"},
+        "framework": {"name": "fastapi"},
+        "template": {"name": "fastiq", "version": "1.0.0"}
+    }
+    with open(pyartisan_dir / "project.yaml", "w") as f:
+        yaml.dump(project_yaml_content, f)
+
+    home_dir = root / "home"
+    home_dir.mkdir()
+    global_pyartisan = home_dir / ".pyartisan"
+    global_pyartisan.mkdir()
+    template_yaml_dir = global_pyartisan / "templates" / "fastiq" / "1.0.0"
+    template_yaml_dir.mkdir(parents=True)
+    template_yaml_content = {
+        "markers": {
+            "routers": {
+                "file": "app/main.py",
+                "marker": "# pyartisan:routers"
+            }
+        }
+    }
+    with open(template_yaml_dir / "template.yaml", "w") as f:
+        yaml.dump(template_yaml_content, f)
+
+    main_py = root / "app" / "main.py"
+    main_py.parent.mkdir()
+    main_py.write_text("# pyartisan:routers\n")
+
+    req_file = root / "requirements.txt"
+    req_file.write_text("fastapi\n")
+
+    return pyartisan_dir, home_dir
+
+
+def test_cli_plugin_lifecycle():
+    """Test alur lengkap: install (registry) -> apply (project) -> remove (project) -> uninstall (registry)."""
     runner = CliRunner()
     with runner.isolated_filesystem() as tmp_dir:
         root = Path(tmp_dir)
-
-        # Mock project.yaml
-        pyartisan_dir = root / ".pyartisan"
-        pyartisan_dir.mkdir()
-        project_yaml_content = {
-            "project": {"name": "sandbox"},
-            "framework": {"name": "fastapi"},
-            "template": {"name": "fastiq", "version": "1.0.0"}
-        }
-        with open(pyartisan_dir / "project.yaml", "w") as f:
-            yaml.dump(project_yaml_content, f)
-
-        # Mock home & template.yaml
-        home_dir = root / "home"
-        home_dir.mkdir()
-        global_pyartisan = home_dir / ".pyartisan"
-        global_pyartisan.mkdir()
-        template_yaml_dir = global_pyartisan / "templates" / "fastiq" / "1.0.0"
-        template_yaml_dir.mkdir(parents=True)
-        template_yaml_content = {
-            "markers": {
-                "routers": {
-                    "file": "app/main.py",
-                    "marker": "# pyartisan:routers"
-                }
-            }
-        }
-        with open(template_yaml_dir / "template.yaml", "w") as f:
-            yaml.dump(template_yaml_content, f)
-
-        # Mock app/main.py
-        main_py = root / "app" / "main.py"
-        main_py.parent.mkdir()
-        main_py.write_text("# pyartisan:routers\n")
+        pyartisan_dir, home_dir = _setup_plugin_project(root)
 
         # Mock local plugin directory
         plugin_src_dir = root / "my-plugin"
@@ -395,52 +402,109 @@ def test_cli_plugin_install():
         with open(plugin_src_dir / "manifest.yaml", "w") as f:
             yaml.dump(manifest_content, f)
 
-        # Mock requirements.txt
-        req_file = root / "requirements.txt"
-        req_file.write_text("fastapi\n")
-
-        # Patch expanduser
         import os
         orig_expanduser = os.path.expanduser
         os.path.expanduser = lambda path: str(home_dir) if path == "~" else orig_expanduser(path)
+        orig_cwd = os.getcwd()
 
         try:
-            # Test local installation
-            # Mengubah working directory click run agar mendeteksi project.yaml secara lokal
             os.chdir(root)
+
+            # 1. install: download ke registry saja, project.yaml belum berubah
             result = runner.invoke(cli, ["plugin", "install", "myplugin", "--local", str(plugin_src_dir)])
             assert result.exit_code == 0, result.output
             assert "linked local plugin" in result.output.lower()
-            assert "successfully installed" in result.output.lower()
+            assert "downloaded to registry" in result.output.lower()
 
-            # Test blockchain license premium plugin mock installation
+            project_config = yaml.safe_load((pyartisan_dir / "project.yaml").read_text())
+            assert "plugins" not in project_config or project_config["plugins"] == []
+
+            # plugin list (project) masih kosong sebelum apply
+            result = runner.invoke(cli, ["plugin", "list"])
+            assert result.exit_code == 0, result.output
+            assert "no plugins installed" in result.output.lower()
+
+            # plugin list --global menunjukkan plugin yang sudah di-download
+            result = runner.invoke(cli, ["plugin", "list", "--global"])
+            assert result.exit_code == 0, result.output
+            assert "myplugin@dev" in result.output
+
+            # 2. apply: terapkan ke project
+            result = runner.invoke(cli, ["plugin", "apply", "myplugin"])
+            assert result.exit_code == 0, result.output
+            assert "successfully applied" in result.output.lower()
+
+            project_config = yaml.safe_load((pyartisan_dir / "project.yaml").read_text())
+            assert "myplugin@1.0.0" in project_config["plugins"]
+            assert "httpx" in (root / "requirements.txt").read_text()
+
+            # plugin list (project) sekarang menunjukkan plugin aktif
+            result = runner.invoke(cli, ["plugin", "list"])
+            assert "myplugin@1.0.0" in result.output
+
+            # 3. uninstall langsung gagal karena masih dipakai project ini
+            result = runner.invoke(cli, ["plugin", "uninstall", "myplugin"])
+            assert result.exit_code == 0, result.output
+            assert "still used by" in result.output.lower()
+
+            # 4. remove dari project dulu
+            result = runner.invoke(cli, ["plugin", "remove", "myplugin"])
+            assert result.exit_code == 0, result.output
+            assert "removed myplugin@1.0.0" in result.output.lower()
+
+            project_config = yaml.safe_load((pyartisan_dir / "project.yaml").read_text())
+            assert "myplugin@1.0.0" not in project_config["plugins"]
+
+            # 5. baru sekarang uninstall dari registry berhasil
+            result = runner.invoke(cli, ["plugin", "uninstall", "myplugin"])
+            assert result.exit_code == 0, result.output
+            assert "uninstalled 'myplugin'" in result.output.lower()
+
+            result = runner.invoke(cli, ["plugin", "list", "--global"])
+            assert "no plugins installed in registry" in result.output.lower()
+
+        finally:
+            os.path.expanduser = orig_expanduser
+            os.chdir(orig_cwd)
+
+    print("OK  cli_plugin_lifecycle")
+
+
+def test_cli_plugin_install_blockchain_license():
+    runner = CliRunner()
+    with runner.isolated_filesystem() as tmp_dir:
+        root = Path(tmp_dir)
+        _pyartisan_dir, home_dir = _setup_plugin_project(root)
+
+        import os
+        orig_expanduser = os.path.expanduser
+        os.path.expanduser = lambda path: str(home_dir) if path == "~" else orig_expanduser(path)
+        orig_cwd = os.getcwd()
+
+        try:
+            os.chdir(root)
+
             result_premium = runner.invoke(cli, ["plugin", "install", "premium-plugin", "--license", "valid-12345"])
             assert result_premium.exit_code == 0, result_premium.output
             assert "license ownership successfully verified" in result_premium.output.lower()
 
-            # Test blockchain invalid license key
             result_invalid = runner.invoke(cli, ["plugin", "install", "premium-plugin", "--license", "invalid-key"])
             assert "invalid license key" in result_invalid.output.lower()
-
         finally:
             os.path.expanduser = orig_expanduser
+            os.chdir(orig_cwd)
 
-    print("OK  cli_plugin_install")
+    print("OK  cli_plugin_install_blockchain_license")
 
 
-def test_cli_plugin_list_and_uninstall():
+def test_cli_plugin_remove_multi_and_all():
     runner = CliRunner()
     with runner.isolated_filesystem() as tmp_dir:
         root = Path(tmp_dir)
+        pyartisan_dir, home_dir = _setup_plugin_project(root)
 
-        pyartisan_dir = root / ".pyartisan"
-        pyartisan_dir.mkdir()
-        project_yaml_content = {
-            "project": {"name": "sandbox"},
-            "framework": {"name": "fastapi"},
-            "template": {"name": "fastiq", "version": "1.0.0"},
-            "plugins": ["payment-midtrans@1.0.0", "auth-jwt@2.0.0", "docker-tools@1.2.1"]
-        }
+        project_yaml_content = yaml.safe_load((pyartisan_dir / "project.yaml").read_text())
+        project_yaml_content["plugins"] = ["payment-midtrans@1.0.0", "auth-jwt@2.0.0", "docker-tools@1.2.1"]
         with open(pyartisan_dir / "project.yaml", "w") as f:
             yaml.dump(project_yaml_content, f)
 
@@ -455,8 +519,8 @@ def test_cli_plugin_list_and_uninstall():
             assert "auth-jwt@2.0.0" in result.output
             assert "docker-tools@1.2.1" in result.output
 
-            # Test uninstall single plugin
-            result = runner.invoke(cli, ["plugin", "uninstall", "payment-midtrans"])
+            # Test remove satu plugin dari project
+            result = runner.invoke(cli, ["plugin", "remove", "payment-midtrans"])
             assert result.exit_code == 0, result.output
             assert "removed payment-midtrans@1.0.0" in result.output.lower()
 
@@ -464,8 +528,8 @@ def test_cli_plugin_list_and_uninstall():
             assert "payment-midtrans@1.0.0" not in updated_config["plugins"]
             assert "auth-jwt@2.0.0" in updated_config["plugins"]
 
-            # Test uninstall multiple plugins
-            result = runner.invoke(cli, ["plugin", "uninstall", "auth-jwt", "docker-tools"])
+            # Test remove banyak plugin sekaligus
+            result = runner.invoke(cli, ["plugin", "remove", "auth-jwt", "docker-tools"])
             assert result.exit_code == 0, result.output
             updated_config2 = yaml.safe_load((pyartisan_dir / "project.yaml").read_text())
             assert updated_config2["plugins"] == []
@@ -475,14 +539,14 @@ def test_cli_plugin_list_and_uninstall():
             with open(pyartisan_dir / "project.yaml", "w") as f:
                 yaml.dump(project_yaml_content, f)
 
-            result = runner.invoke(cli, ["plugin", "uninstall", "--all"])
+            result = runner.invoke(cli, ["plugin", "remove", "--all"])
             assert result.exit_code == 0, result.output
             updated_config3 = yaml.safe_load((pyartisan_dir / "project.yaml").read_text())
             assert updated_config3["plugins"] == []
         finally:
             os.chdir(orig_cwd)
 
-    print("OK  cli_plugin_list_and_uninstall")
+    print("OK  cli_plugin_remove_multi_and_all")
 
 
 def main():
@@ -497,8 +561,9 @@ def main():
     test_cli_make_no_manifest()
     test_metadata_parsers()
     test_project_context_ops()
-    test_cli_plugin_install()
-    test_cli_plugin_list_and_uninstall()
+    test_cli_plugin_lifecycle()
+    test_cli_plugin_install_blockchain_license()
+    test_cli_plugin_remove_multi_and_all()
     print("\nALL SMOKE TESTS PASSED")
 
 
