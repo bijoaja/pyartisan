@@ -12,3 +12,9 @@ Task 9: complete (harmonized manifest.yaml configurations and template stubs dir
 Task 10: complete (final testing of nested generator structure and local workspace checks)
 Task 11: complete (supported list-based registration in pyartisan core engine)
 Task 12: complete (restructured stubs and manifest in fastiq to match SQLAlchemy 2.0 / Pydantic v2 / API schemas)
+
+---
+Sistem Plugin PyArtisan (Komunitas & Marketplace):
+- [x] Task 1: Membuat Skema & Parser Metadata (complete, commit de17111)
+- [ ] Task 2: Implementasi Project API & Marker Writer (Pending)
+- [ ] Task 3: Fitur CLI pyartisan plugin install (Pending)

@@ -236,6 +236,36 @@ def test_cli_make_no_manifest():
     print("OK  cli_make_no_manifest")
 
 
+def test_metadata_parsers():
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        # test project.yaml
+        project_content = {"project": {"name": "ecommerce"}, "framework": {"name": "fastapi"}}
+        with open(root / "project.yaml", "w") as f:
+            yaml.dump(project_content, f)
+
+        from pyartisan.core.plugin_engine import load_project_yaml, load_template_yaml, load_plugin_yaml
+        res = load_project_yaml(root)
+        assert res["project"]["name"] == "ecommerce"
+
+        # test template.yaml
+        template_file = root / "template.yaml"
+        template_content = {"markers": {"routers": {"file": "app/main.py"}}}
+        with open(template_file, "w") as f:
+            yaml.dump(template_content, f)
+        res_t = load_template_yaml(template_file)
+        assert res_t["markers"]["routers"]["file"] == "app/main.py"
+
+        # test plugin manifest.yaml
+        plugin_file = root / "manifest.yaml"
+        plugin_content = {"id": "payment-midtrans"}
+        with open(plugin_file, "w") as f:
+            yaml.dump(plugin_content, f)
+        res_p = load_plugin_yaml(plugin_file)
+        assert res_p["id"] == "payment-midtrans"
+    print("OK  metadata_parsers")
+
+
 def main():
     test_name_parts()
     test_manifest_load()
@@ -246,6 +276,7 @@ def main():
     test_cli_generic_make()
     test_cli_make_not_supported()
     test_cli_make_no_manifest()
+    test_metadata_parsers()
     print("\nALL SMOKE TESTS PASSED")
 
 
