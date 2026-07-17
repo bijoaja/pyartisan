@@ -428,6 +428,63 @@ def test_cli_plugin_install():
     print("OK  cli_plugin_install")
 
 
+def test_cli_plugin_list_and_uninstall():
+    runner = CliRunner()
+    with runner.isolated_filesystem() as tmp_dir:
+        root = Path(tmp_dir)
+
+        pyartisan_dir = root / ".pyartisan"
+        pyartisan_dir.mkdir()
+        project_yaml_content = {
+            "project": {"name": "sandbox"},
+            "framework": {"name": "fastapi"},
+            "template": {"name": "fastiq", "version": "1.0.0"},
+            "plugins": ["payment-midtrans@1.0.0", "auth-jwt@2.0.0", "docker-tools@1.2.1"]
+        }
+        with open(pyartisan_dir / "project.yaml", "w") as f:
+            yaml.dump(project_yaml_content, f)
+
+        import os
+        orig_cwd = os.getcwd()
+        os.chdir(root)
+        try:
+            # Test list
+            result = runner.invoke(cli, ["plugin", "list"])
+            assert result.exit_code == 0, result.output
+            assert "payment-midtrans@1.0.0" in result.output
+            assert "auth-jwt@2.0.0" in result.output
+            assert "docker-tools@1.2.1" in result.output
+
+            # Test uninstall single plugin
+            result = runner.invoke(cli, ["plugin", "uninstall", "payment-midtrans"])
+            assert result.exit_code == 0, result.output
+            assert "removed payment-midtrans@1.0.0" in result.output.lower()
+
+            updated_config = yaml.safe_load((pyartisan_dir / "project.yaml").read_text())
+            assert "payment-midtrans@1.0.0" not in updated_config["plugins"]
+            assert "auth-jwt@2.0.0" in updated_config["plugins"]
+
+            # Test uninstall multiple plugins
+            result = runner.invoke(cli, ["plugin", "uninstall", "auth-jwt", "docker-tools"])
+            assert result.exit_code == 0, result.output
+            updated_config2 = yaml.safe_load((pyartisan_dir / "project.yaml").read_text())
+            assert updated_config2["plugins"] == []
+
+            # Re-populate untuk test --all
+            project_yaml_content["plugins"] = ["payment-midtrans@1.0.0", "auth-jwt@2.0.0"]
+            with open(pyartisan_dir / "project.yaml", "w") as f:
+                yaml.dump(project_yaml_content, f)
+
+            result = runner.invoke(cli, ["plugin", "uninstall", "--all"])
+            assert result.exit_code == 0, result.output
+            updated_config3 = yaml.safe_load((pyartisan_dir / "project.yaml").read_text())
+            assert updated_config3["plugins"] == []
+        finally:
+            os.chdir(orig_cwd)
+
+    print("OK  cli_plugin_list_and_uninstall")
+
+
 def main():
     test_name_parts()
     test_manifest_load()
@@ -441,6 +498,7 @@ def main():
     test_metadata_parsers()
     test_project_context_ops()
     test_cli_plugin_install()
+    test_cli_plugin_list_and_uninstall()
     print("\nALL SMOKE TESTS PASSED")
 
 

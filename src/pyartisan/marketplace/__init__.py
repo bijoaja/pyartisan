@@ -123,6 +123,7 @@ def install_cmd(name: str, local: str, license: str):
 
     # Jalankan hooks.py jika ada
     hooks_file = plugin_dir / "hooks.py"
+    hooks_module = None
     if hooks_file.exists():
         import importlib.util
         spec = importlib.util.spec_from_file_location("plugin_hooks", hooks_file)
@@ -142,7 +143,7 @@ def install_cmd(name: str, local: str, license: str):
             project_ctx.add_dependency(pip_dep)
 
     # Jalankan hooks.py: after_install
-    if hooks_file.exists() and hasattr(hooks_module, "after_install"):
+    if hooks_module and hasattr(hooks_module, "after_install"):
         click.echo("🏃 Running after_install hook...")
         hooks_module.after_install(project_ctx)
 
@@ -158,3 +159,57 @@ def install_cmd(name: str, local: str, license: str):
             yaml.dump(project_config, f)
 
     click.echo(f"🎉 Plugin {plugin_manifest.get('name')} successfully installed!")
+
+
+@plugin_group.command(name="list")
+def list_cmd():
+    """List installed plugins in the current project."""
+    cwd = Path.cwd()
+    project_yaml_file = cwd / ".pyartisan" / "project.yaml"
+    if not project_yaml_file.exists():
+        click.echo("❌ Error: Not a pyartisan project.")
+        return
+
+    project_config = load_plugin_yaml(project_yaml_file)
+    plugins = project_config.get("plugins", [])
+    if not plugins:
+        click.echo("No plugins installed.")
+        return
+
+    click.echo("Project Plugins:")
+    for p in plugins:
+        click.echo(f"✔ {p}")
+
+
+@plugin_group.command(name="uninstall")
+@click.argument("names", nargs=-1)
+@click.option("--all", is_flag=True, help="Remove all plugins")
+def uninstall_cmd(names, all):
+    """Remove plugins from current project."""
+    cwd = Path.cwd()
+    project_yaml_file = cwd / ".pyartisan" / "project.yaml"
+    if not project_yaml_file.exists():
+        click.echo("❌ Error: Not a pyartisan project.")
+        return
+
+    project_config = load_plugin_yaml(project_yaml_file)
+    installed_plugins = project_config.get("plugins", [])
+
+    if all:
+        to_remove = list(installed_plugins)
+    else:
+        to_remove = [p for p in installed_plugins if p.split('@')[0] in names]
+
+    if not to_remove:
+        click.echo("No plugins to remove.")
+        return
+
+    for p in to_remove:
+        if p in installed_plugins:
+            installed_plugins.remove(p)
+            click.echo(f"✔ Removed {p} from project.")
+
+    project_config["plugins"] = installed_plugins
+    with open(project_yaml_file, "w") as f:
+        yaml.dump(project_config, f)
+
