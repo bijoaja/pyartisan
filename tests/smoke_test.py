@@ -266,6 +266,84 @@ def test_metadata_parsers():
     print("OK  metadata_parsers")
 
 
+def test_project_context_ops():
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        pyartisan_dir = root / ".pyartisan"
+        pyartisan_dir.mkdir()
+
+        project_yaml_content = {
+            "project": {"name": "sandbox"},
+            "framework": {"name": "fastapi"},
+            "template": {"name": "fastiq", "version": "1.0.0"}
+        }
+        with open(pyartisan_dir / "project.yaml", "w") as f:
+            yaml.dump(project_yaml_content, f)
+
+        # Mock global registry
+        home_dir = root / "home"
+        home_dir.mkdir()
+        global_pyartisan = home_dir / ".pyartisan"
+        global_pyartisan.mkdir()
+        template_yaml_dir = global_pyartisan / "templates" / "fastiq" / "1.0.0"
+        template_yaml_dir.mkdir(parents=True)
+
+        template_yaml_content = {
+            "markers": {
+                "routers": {
+                    "file": "app/main.py",
+                    "marker": "# pyartisan:routers"
+                }
+            },
+            "paths": {
+                "services": "app/modules/{module}/service.py"
+            }
+        }
+        with open(template_yaml_dir / "template.yaml", "w") as f:
+            yaml.dump(template_yaml_content, f)
+
+        # Mock app/main.py
+        main_py = root / "app" / "main.py"
+        main_py.parent.mkdir(parents=True)
+        main_py.write_text("app = FastAPI()\n# pyartisan:routers\n")
+
+        # Mock plugin stub
+        stub_file = root / "stub.py.jinja"
+        stub_file.write_text("class {{name_title}}Service:\n    pass\n")
+
+        # Mock requirements.txt
+        req_file = root / "requirements.txt"
+        req_file.write_text("fastapi\n")
+
+        # Patch expanduser to use our temp home
+        import os
+        orig_expanduser = os.path.expanduser
+        os.path.expanduser = lambda path: str(home_dir) if path == "~" else orig_expanduser(path)
+
+        try:
+            from pyartisan.core.plugin_engine import ProjectContext
+            ctx = ProjectContext(root)
+            ctx.create_service("payment", str(stub_file))
+            ctx.register_router("payment")
+            ctx.add_dependency("stripe")
+
+            # Assert service created
+            service_dest = root / "app" / "modules" / "payment" / "service.py"
+            assert service_dest.exists()
+            assert "class PaymentService:" in service_dest.read_text()
+
+            # Assert router registered
+            assert "app.include_router(payment_router" in main_py.read_text()
+
+            # Assert dependency added
+            assert "stripe" in req_file.read_text()
+
+        finally:
+            os.path.expanduser = orig_expanduser
+
+    print("OK  project_context_ops")
+
+
 def main():
     test_name_parts()
     test_manifest_load()
@@ -277,6 +355,7 @@ def main():
     test_cli_make_not_supported()
     test_cli_make_no_manifest()
     test_metadata_parsers()
+    test_project_context_ops()
     print("\nALL SMOKE TESTS PASSED")
 
 

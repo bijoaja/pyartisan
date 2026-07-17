@@ -15,6 +15,6 @@ Task 12: complete (restructured stubs and manifest in fastiq to match SQLAlchemy
 
 ---
 Sistem Plugin PyArtisan (Komunitas & Marketplace):
-- [x] Task 1: Membuat Skema & Parser Metadata (complete, commit de17111)
-- [ ] Task 2: Implementasi Project API & Marker Writer (Pending)
+- [x] Task 1: Membuat Skema & Parser Metadata (complete, commit d89400e)
+- [x] Task 2: Implementasi Project API & Marker Writer (complete, commit 1a6d910)
 - [ ] Task 3: Fitur CLI pyartisan plugin install (Pending)
