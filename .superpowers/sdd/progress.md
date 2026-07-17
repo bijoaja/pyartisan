@@ -10,3 +10,5 @@ Task 7: complete (dynamic type/version CLI options, nested path stubs for FlaskI
 Task 8: complete (restructure View files into view/ folders in FlaskIQ, updated imports)
 Task 9: complete (harmonized manifest.yaml configurations and template stubs directory paths)
 Task 10: complete (final testing of nested generator structure and local workspace checks)
+Task 11: complete (supported list-based registration in pyartisan core engine)
+Task 12: complete (restructured stubs and manifest in fastiq to match SQLAlchemy 2.0 / Pydantic v2 / API schemas)

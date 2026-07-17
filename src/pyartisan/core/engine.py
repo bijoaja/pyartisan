@@ -152,26 +152,31 @@ def dispatch_make(target: str, name: str, force: bool = False, **extra_options) 
 
     # Registration
     if "registration" in gen_config:
-        reg = gen_config["registration"]
-        reg_type = reg.get("type")
-        target_template = reg.get("target")
+        registrations = gen_config["registration"]
+        # Normalize to list of dicts for dynamic support (backward compatible)
+        if isinstance(registrations, dict):
+            registrations = [registrations]
 
-        if not reg_type or not target_template:
-            raise ManifestError(f"Registration configuration for '{target}' is missing 'type' or 'target'.")
+        for reg in registrations:
+            reg_type = reg.get("type")
+            target_template = reg.get("target")
 
-        # Render target path
-        target_file_rel = Environment().from_string(target_template).render(
-            path=dest_path_rel, **context
-        )
-        target_file = cwd / target_file_rel
+            if not reg_type or not target_template:
+                raise ManifestError(f"Registration configuration for '{target}' is missing 'type' or 'target'.")
 
-        apply_registration(
-            reg_type=reg_type,
-            target_file=target_file,
-            context=context,
-            marker=reg.get("marker"),
-            line_template=reg.get("line")
-        )
+            # Render target path
+            target_file_rel = Environment().from_string(target_template).render(
+                path=dest_path_rel, **context
+            )
+            target_file = cwd / target_file_rel
+
+            apply_registration(
+                reg_type=reg_type,
+                target_file=target_file,
+                context=context,
+                marker=reg.get("marker"),
+                line_template=reg.get("line")
+            )
 
     click.echo(f"Done. '{name_title}' scaffolded successfully.")
 

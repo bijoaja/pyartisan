@@ -157,6 +157,11 @@ def test_cli_generic_make():
         manifest_dir = root / ".pyartisan"
         manifest_dir.mkdir()
 
+        # Create main.py with model registration marker
+        main_py = root / "app" / "main.py"
+        main_py.parent.mkdir(parents=True, exist_ok=True)
+        main_py.write_text("# pyartisan:models\n")
+
         manifest_data = {
             "id": "testproj",
             "framework": "flask",
@@ -169,10 +174,18 @@ def test_cli_generic_make():
                     "stub_subpath": "{{type}}",
                     "path": "model",
                     "dest": "nested_{{type}}",
-                    "registration": {
-                        "type": "import_list",
-                        "target": "{{path}}/nested_{{type}}/__init__.py"
-                    }
+                    "registration": [
+                        {
+                            "type": "import_list",
+                            "target": "{{path}}/nested_{{type}}/__init__.py"
+                        },
+                        {
+                            "type": "marker",
+                            "target": "app/main.py",
+                            "marker": "# pyartisan:models",
+                            "line": "from app.model.nested_{{type}}.{{name_lower}} import {{name_title}}"
+                        }
+                    ]
                 }
             }
         }
@@ -192,6 +205,10 @@ def test_cli_generic_make():
         assert model_file.read_text() == "class Post:\n    pass\n"
         assert init_file.exists()
         assert "from .post import Post" in init_file.read_text()
+
+        # Verify marker registration in main.py
+        main_content = main_py.read_text()
+        assert "from app.model.nested_api.post import Post" in main_content
     print("OK  cli_generic_make")
 
 
