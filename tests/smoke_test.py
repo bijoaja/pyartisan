@@ -344,6 +344,90 @@ def test_project_context_ops():
     print("OK  project_context_ops")
 
 
+def test_cli_plugin_install():
+    runner = CliRunner()
+    with runner.isolated_filesystem() as tmp_dir:
+        root = Path(tmp_dir)
+
+        # Mock project.yaml
+        pyartisan_dir = root / ".pyartisan"
+        pyartisan_dir.mkdir()
+        project_yaml_content = {
+            "project": {"name": "sandbox"},
+            "framework": {"name": "fastapi"},
+            "template": {"name": "fastiq", "version": "1.0.0"}
+        }
+        with open(pyartisan_dir / "project.yaml", "w") as f:
+            yaml.dump(project_yaml_content, f)
+
+        # Mock home & template.yaml
+        home_dir = root / "home"
+        home_dir.mkdir()
+        global_pyartisan = home_dir / ".pyartisan"
+        global_pyartisan.mkdir()
+        template_yaml_dir = global_pyartisan / "templates" / "fastiq" / "1.0.0"
+        template_yaml_dir.mkdir(parents=True)
+        template_yaml_content = {
+            "markers": {
+                "routers": {
+                    "file": "app/main.py",
+                    "marker": "# pyartisan:routers"
+                }
+            }
+        }
+        with open(template_yaml_dir / "template.yaml", "w") as f:
+            yaml.dump(template_yaml_content, f)
+
+        # Mock app/main.py
+        main_py = root / "app" / "main.py"
+        main_py.parent.mkdir()
+        main_py.write_text("# pyartisan:routers\n")
+
+        # Mock local plugin directory
+        plugin_src_dir = root / "my-plugin"
+        plugin_src_dir.mkdir()
+        manifest_content = {
+            "id": "myplugin",
+            "name": "My Local Plugin",
+            "version": "1.0.0",
+            "dependencies": {"pip": ["httpx"]}
+        }
+        with open(plugin_src_dir / "manifest.yaml", "w") as f:
+            yaml.dump(manifest_content, f)
+
+        # Mock requirements.txt
+        req_file = root / "requirements.txt"
+        req_file.write_text("fastapi\n")
+
+        # Patch expanduser
+        import os
+        orig_expanduser = os.path.expanduser
+        os.path.expanduser = lambda path: str(home_dir) if path == "~" else orig_expanduser(path)
+
+        try:
+            # Test local installation
+            # Mengubah working directory click run agar mendeteksi project.yaml secara lokal
+            os.chdir(root)
+            result = runner.invoke(cli, ["plugin", "install", "myplugin", "--local", str(plugin_src_dir)])
+            assert result.exit_code == 0, result.output
+            assert "linked local plugin" in result.output.lower()
+            assert "successfully installed" in result.output.lower()
+
+            # Test blockchain license premium plugin mock installation
+            result_premium = runner.invoke(cli, ["plugin", "install", "premium-plugin", "--license", "valid-12345"])
+            assert result_premium.exit_code == 0, result_premium.output
+            assert "license ownership successfully verified" in result_premium.output.lower()
+
+            # Test blockchain invalid license key
+            result_invalid = runner.invoke(cli, ["plugin", "install", "premium-plugin", "--license", "invalid-key"])
+            assert "invalid license key" in result_invalid.output.lower()
+
+        finally:
+            os.path.expanduser = orig_expanduser
+
+    print("OK  cli_plugin_install")
+
+
 def main():
     test_name_parts()
     test_manifest_load()
@@ -356,6 +440,7 @@ def main():
     test_cli_make_no_manifest()
     test_metadata_parsers()
     test_project_context_ops()
+    test_cli_plugin_install()
     print("\nALL SMOKE TESTS PASSED")
 
 

@@ -6,12 +6,16 @@ from pyartisan import config as config_module
 from pyartisan.core import engine
 from pyartisan.core.exceptions import PyArtisanError
 from pyartisan.shared.doctor import run_checks
+from pyartisan.marketplace import plugin_group
 
 
 @click.group()
 @click.version_option(__version__, prog_name="pyartisan")
 def cli():
     """pyartisan - AI-powered Python Web Development Toolkit"""
+
+
+cli.add_command(plugin_group)
 
 
 @cli.command(name="new")
