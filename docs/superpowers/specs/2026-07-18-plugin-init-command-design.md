@@ -82,7 +82,7 @@ crud-blogs/
 ### `manifest.yaml` (rendered)
 
 ```yaml
-id: {{name_lower}}
+id: {{name}}
 name: {{name_title}} Plugin
 version: 1.0.0
 description: ""
@@ -90,6 +90,15 @@ author: ""
 dependencies:
   pip: []
 ```
+
+`id` harus sama persis dengan argumen `<name>` yang diketik user (kebab-case,
+mis. `crud-blogs`) — **bukan** `name_lower` (yang mengubah `-` jadi `_`).
+Ini mengikuti konvensi registry yang sudah ada: `install_cmd`/`apply_cmd`
+(`marketplace/__init__.py:146`, `:220`) selalu memakai argumen `name` literal
+sebagai key folder di `~/.pyartisan/plugins/<name>/`, dan `manifest.yaml`
+plugin `crud-blogs` yang sudah dibuat sebelumnya juga pakai `id: crud-blogs`
+(hyphenated), bukan underscore. `name_lower`/`name_title` tetap dipakai untuk
+konteks lain (nama kelas Python, dsb di dalam `hooks.py`/stub content).
 
 ### `hooks.py` (rendered — skeleton, bukan contoh CRUD jadi)
 
@@ -107,7 +116,7 @@ def after_install(project):
     Example:
         if project.framework == "fastapi":
             project.create_service(
-                name="{{name_lower}}",
+                name="{{name}}",
                 stub_path=str(Path(__file__).parent / "stubs" / "fastapi" / "service.py.jinja"),
             )
     """
@@ -169,8 +178,8 @@ def init_cmd(name: str):
         ["fastapi", "flask", "django"] if framework_choice == "all" else [framework_choice]
     )
 
-    name_lower, name_title, _, _ = name_parts(name)
-    context = {"name": name, "name_lower": name_lower, "name_title": name_title}
+    _, name_title, _, _ = name_parts(name)
+    context = {"name": name, "name_title": name_title}
 
     template_dir = Path(__file__).parent.parent / "templates" / "plugin_init"
     render_stub(template_dir, dest, context)
@@ -180,9 +189,12 @@ def init_cmd(name: str):
         fw_dir.mkdir(parents=True, exist_ok=True)
         (fw_dir / ".gitkeep").touch()
 
-    # Auto-register ke registry lokal (dev symlink) — sama seperti install --local
+    # Auto-register ke registry lokal (dev symlink) — sama seperti install --local.
+    # Key folder registry = `name` literal (mis. "crud-blogs"), BUKAN name_lower —
+    # harus cocok dengan `id` di manifest.yaml dan dengan yang dicari apply_cmd/
+    # install_cmd (marketplace/__init__.py:146, :220).
     plugins_registry = _plugins_registry()
-    plugin_dir = plugins_registry / name_lower / "dev"
+    plugin_dir = plugins_registry / name / "dev"
     plugin_dir.parent.mkdir(parents=True, exist_ok=True)
     if plugin_dir.exists() or plugin_dir.is_symlink():
         if plugin_dir.is_symlink():
@@ -192,10 +204,10 @@ def init_cmd(name: str):
     os.symlink(dest.resolve(), plugin_dir, target_is_directory=True)
 
     click.echo(f"✔ Plugin skeleton created at {dest}")
-    click.echo(f"✔ Linked to registry -> ~/.pyartisan/plugins/{name_lower}/dev")
+    click.echo(f"✔ Linked to registry -> ~/.pyartisan/plugins/{name}/dev")
     click.echo(
         f"👉 Edit hooks.py and stubs/, then test with "
-        f"`pyartisan plugin apply {name_lower}` inside a sandbox project."
+        f"`pyartisan plugin apply {name}` inside a sandbox project."
     )
 ```
 
@@ -231,8 +243,9 @@ pyartisan = ["templates/plugin_init/**/*"]
 1. `pyartisan plugin init demo-plugin` di direktori kosong, pilih `all` saat prompt
    → folder `demo-plugin/` berisi `manifest.yaml`, `hooks.py`, `README.md`, `LICENSE`,
    `stubs/{fastapi,flask,django}/.gitkeep`
-2. `manifest.yaml` berisi `id: demo_plugin`, `name: DemoPlugin Plugin`, `version: 1.0.0`
-3. `~/.pyartisan/plugins/demo_plugin/dev` adalah symlink valid ke `demo-plugin/`
+2. `manifest.yaml` berisi `id: demo-plugin`, `name: DemoPlugin Plugin`, `version: 1.0.0`
+   (`id` hyphenated, sama persis dengan argumen `<name>`)
+3. `~/.pyartisan/plugins/demo-plugin/dev` adalah symlink valid ke `demo-plugin/`
    (cek `readlink`)
 4. `pyartisan plugin init demo-plugin` dijalankan lagi di folder yang sama
    → error "Directory already exists", tidak menimpa file
