@@ -90,6 +90,25 @@ Publish to GitHub / Marketplace
 
 ---
 
+# Scaffold Plugin Baru (`pyartisan plugin init`)
+
+Daripada membuat struktur folder di atas secara manual, jalankan:
+
+```bash
+pyartisan plugin init payment-midtrans
+```
+
+CLI akan menanyakan framework target (`fastapi`/`flask`/`django`/`all`),
+lalu langsung membuat `manifest.yaml`, `hooks.py` (skeleton kosong dengan
+komentar panduan Project API), `README.md`, `LICENSE`, dan folder
+`stubs/<framework>/` kosong untuk tiap framework yang dipilih — plus
+langsung mendaftarkan plugin ke registry lokal dalam mode dev (setara
+`pyartisan plugin install --local`). Tinggal isi `hooks.py` dan `stubs/`,
+lalu langsung uji dengan `pyartisan plugin apply payment-midtrans` di
+project sandbox.
+
+---
+
 # Project Structure
 
 Struktur plugin yang direkomendasikan
@@ -684,11 +703,5 @@ Agar ekosistem plugin PyArtisan lebih kuat dan stabil, saya menyarankan menambah
 
    dibanding harus mengandalkan nama fungsi tertentu.
 
-2. **`pyartisan plugin init`**
-   Sebuah generator untuk membuat skeleton plugin baru:
-
-   ```bash
-   pyartisan plugin init payment-midtrans
-   ```
-
-   Hasilnya langsung membuat struktur folder, `manifest.yaml`, `hooks.py`, stub framework, README, LICENSE, dan contoh test. Ini akan sangat meningkatkan pengalaman developer dan mendorong konsistensi antar plugin.
+2. **`pyartisan plugin init`** — ✅ sudah diimplementasikan, lihat bagian
+   "Scaffold Plugin Baru" di atas.

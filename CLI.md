@@ -117,6 +117,7 @@ PyArtisan memperlakukan plugin seperti **package manager** (mirip `npm`/`pip`), 
 Lifecycle plugin:
 
 ```text
+init     → scaffold skeleton plugin baru + auto-register ke registry (dev mode)
 install  → download ke registry (global, tidak mengubah project apa pun)
 apply    → terapkan plugin registry ke project aktif (jalankan hooks, tulis project.yaml)
 update   → tarik pembaruan git plugin di registry, re-apply otomatis jika dipakai project ini
@@ -240,6 +241,32 @@ Pemeriksaan lebih dalam dari `status`:
 
 Diakhiri dengan `Plugin is valid` atau `Plugin has issues, see above.`
 
+### 7.10 Init — Scaffold Plugin Baru
+
+```bash
+pyartisan plugin init <name>
+```
+
+Membuat skeleton plugin baru di `./<name>/` — tidak perlu membuat struktur
+folder secara manual lagi. Prosesnya:
+
+1. Menolak jika direktori `./<name>/` sudah ada (tidak menimpa apa pun).
+2. Menanyakan framework target secara interaktif: `fastapi` / `flask` /
+   `django` / `all` (default `all`).
+3. Merender skeleton dari template bawaan `pyartisan` sendiri (tidak butuh
+   koneksi internet): `manifest.yaml`, `hooks.py` (fungsi `after_install`
+   dan `before_remove` kosong berisi komentar panduan Project API),
+   `README.md`, `LICENSE`.
+4. Membuat folder `stubs/<framework>/` kosong untuk tiap framework yang
+   dipilih di langkah 2.
+5. Langsung mendaftarkan plugin ke registry lokal sebagai symlink dev-mode
+   (`~/.pyartisan/plugins/<name>/dev/`) — setara efeknya dengan
+   `pyartisan plugin install <name> --local ./<name>`, jadi tidak perlu
+   dijalankan terpisah.
+
+Setelah `init`, langsung bisa `pyartisan plugin apply <name>` di dalam
+project sandbox mana pun untuk mulai menguji hook yang sedang dikembangkan.
+
 ---
 
 ## 8. Membuat Plugin Sendiri
@@ -259,6 +286,7 @@ Lihat [`Tutorial Create Plugin`](HOW_TO_CREATE_PLUGIN.md) untuk panduan lengkap 
 | `pyartisan config show\|set\|reset` | Kelola konfigurasi global |
 | `pyartisan doctor` | Cek kesehatan environment |
 | `pyartisan version` | Tampilkan versi CLI |
+| `pyartisan plugin init <name>` | Scaffold skeleton plugin baru + auto-register ke registry |
 | `pyartisan plugin install <name>` | Download plugin ke registry global |
 | `pyartisan plugin apply <name>` | Terapkan plugin ke project aktif |
 | `pyartisan plugin update <name>` | Perbarui plugin di registry (+ re-apply) |

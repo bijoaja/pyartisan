@@ -17,3 +17,6 @@ pyartisan = "pyartisan.cli:cli"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+pyartisan = ["templates/plugin_init/**/*"]

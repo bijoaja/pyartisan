@@ -5,6 +5,7 @@ No pytest dependency required — run directly:
 """
 import shutil
 import tempfile
+import os
 from pathlib import Path
 import yaml
 
@@ -650,6 +651,108 @@ def test_cli_plugin_list_updates():
     print("OK  cli_plugin_list_updates")
 
 
+def _patch_home(root: Path):
+    """Helper: point os.path.expanduser('~') at an isolated home dir under root."""
+    home_dir = root / "home"
+    home_dir.mkdir()
+    orig_expanduser = os.path.expanduser
+    os.path.expanduser = lambda path: str(home_dir) if path == "~" else orig_expanduser(path)
+    return home_dir, orig_expanduser
+
+
+def test_cli_plugin_init_all_frameworks():
+    """`pyartisan plugin init <name>` scaffolds skeleton + registers dev symlink."""
+    import os
+    runner = CliRunner()
+    with runner.isolated_filesystem() as tmp_dir:
+        root = Path(tmp_dir)
+        home_dir, orig_expanduser = _patch_home(root)
+        orig_cwd = os.getcwd()
+
+        try:
+            os.chdir(root)
+
+            result = runner.invoke(cli, ["plugin", "init", "crud-blogs"], input="all\n")
+            assert result.exit_code == 0, result.output
+            assert "plugin skeleton created" in result.output.lower()
+
+            plugin_dir = root / "crud-blogs"
+            assert (plugin_dir / "manifest.yaml").exists()
+            assert (plugin_dir / "hooks.py").exists()
+            assert (plugin_dir / "README.md").exists()
+            assert (plugin_dir / "LICENSE").exists()
+            assert (plugin_dir / "stubs" / "fastapi" / ".gitkeep").exists()
+            assert (plugin_dir / "stubs" / "flask" / ".gitkeep").exists()
+            assert (plugin_dir / "stubs" / "django" / ".gitkeep").exists()
+
+            manifest = yaml.safe_load((plugin_dir / "manifest.yaml").read_text())
+            assert manifest["id"] == "crud-blogs"
+            assert manifest["name"] == "CrudBlogs Plugin"
+            assert manifest["version"] == "1.0.0"
+
+            registry_link = home_dir / ".pyartisan" / "plugins" / "crud-blogs" / "dev"
+            assert registry_link.is_symlink()
+            assert registry_link.resolve() == plugin_dir.resolve()
+        finally:
+            os.path.expanduser = orig_expanduser
+            os.chdir(orig_cwd)
+
+    print("OK  cli_plugin_init_all_frameworks")
+
+
+def test_cli_plugin_init_single_framework():
+    """Only the chosen framework's stub folder is created."""
+    import os
+    runner = CliRunner()
+    with runner.isolated_filesystem() as tmp_dir:
+        root = Path(tmp_dir)
+        _home_dir, orig_expanduser = _patch_home(root)
+        orig_cwd = os.getcwd()
+
+        try:
+            os.chdir(root)
+
+            result = runner.invoke(cli, ["plugin", "init", "demo-plugin"], input="fastapi\n")
+            assert result.exit_code == 0, result.output
+
+            plugin_dir = root / "demo-plugin"
+            assert (plugin_dir / "stubs" / "fastapi" / ".gitkeep").exists()
+            assert not (plugin_dir / "stubs" / "flask").exists()
+            assert not (plugin_dir / "stubs" / "django").exists()
+        finally:
+            os.path.expanduser = orig_expanduser
+            os.chdir(orig_cwd)
+
+    print("OK  cli_plugin_init_single_framework")
+
+
+def test_cli_plugin_init_existing_directory():
+    """Command refuses to overwrite an existing directory."""
+    import os
+    runner = CliRunner()
+    with runner.isolated_filesystem() as tmp_dir:
+        root = Path(tmp_dir)
+        _home_dir, orig_expanduser = _patch_home(root)
+        orig_cwd = os.getcwd()
+
+        try:
+            os.chdir(root)
+            (root / "demo-plugin").mkdir()
+            (root / "demo-plugin" / "keep-me.txt").write_text("do not touch")
+
+            result = runner.invoke(cli, ["plugin", "init", "demo-plugin"], input="all\n")
+            assert result.exit_code == 0, result.output
+            assert "already exists" in result.output.lower()
+
+            assert not (root / "demo-plugin" / "manifest.yaml").exists()
+            assert (root / "demo-plugin" / "keep-me.txt").exists()
+        finally:
+            os.path.expanduser = orig_expanduser
+            os.chdir(orig_cwd)
+
+    print("OK  cli_plugin_init_existing_directory")
+
+
 def main():
     test_name_parts()
     test_manifest_load()
@@ -667,6 +770,9 @@ def main():
     test_cli_plugin_remove_multi_and_all()
     test_cli_plugin_info_status_doctor()
     test_cli_plugin_list_updates()
+    test_cli_plugin_init_all_frameworks()
+    test_cli_plugin_init_single_framework()
+    test_cli_plugin_init_existing_directory()
     print("\nALL SMOKE TESTS PASSED")
 
 

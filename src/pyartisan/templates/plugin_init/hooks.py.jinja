@@ -1,0 +1,23 @@
+def after_install(project):
+    """Called after plugin dependencies are installed into the target project.
+
+    Use the Project API to scaffold files without hardcoding paths:
+      project.framework        -> "fastapi" | "flask" | "django"
+      project.project_path     -> Path to the target project root
+      project.create_service(name, stub_path)
+      project.register_router(name)
+      project.add_dependency(package_name)
+
+    Example:
+        if project.framework == "fastapi":
+            project.create_service(
+                name="{{name}}",
+                stub_path=str(Path(__file__).parent / "stubs" / "fastapi" / "service.py.jinja"),
+            )
+    """
+    pass
+
+
+def before_remove(project):
+    """Called before the plugin is removed from a project. Optional — delete if unused."""
+    pass

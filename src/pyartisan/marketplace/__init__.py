@@ -7,6 +7,8 @@ import click
 import yaml
 
 from pyartisan.core.plugin_engine import ProjectContext, load_plugin_yaml
+from pyartisan.renderer import render_stub
+from pyartisan.utils.naming import name_parts
 
 
 def _global_registry() -> Path:
@@ -126,6 +128,57 @@ def _latest_version(versions: list) -> str:
 def plugin_group():
     """Manage PyArtisan plugins (community & marketplace)"""
     pass
+
+
+@plugin_group.command(name="init")
+@click.argument("name")
+def init_cmd(name: str):
+    """Scaffold a new plugin skeleton, ready for development."""
+    dest = Path.cwd() / name
+    if dest.exists():
+        click.echo(f"❌ Directory already exists: {dest}")
+        return
+
+    framework_choice = click.prompt(
+        "Target framework?",
+        type=click.Choice(["fastapi", "flask", "django", "all"]),
+        default="all",
+    )
+    frameworks = (
+        ["fastapi", "flask", "django"] if framework_choice == "all" else [framework_choice]
+    )
+
+    _, name_title, _, _ = name_parts(name)
+    context = {"name": name, "name_title": name_title}
+
+    template_dir = Path(__file__).parent.parent / "templates" / "plugin_init"
+    render_stub(template_dir, dest, context)
+
+    for fw in frameworks:
+        fw_dir = dest / "stubs" / fw
+        fw_dir.mkdir(parents=True, exist_ok=True)
+        (fw_dir / ".gitkeep").touch()
+
+    # Auto-register into the local registry (dev symlink) — same mechanism
+    # `plugin install --local` uses. Registry key = `name` literal (e.g.
+    # "crud-blogs"), matching manifest.yaml's `id` and what apply_cmd/
+    # install_cmd look up.
+    plugins_registry = _plugins_registry()
+    plugin_dir = plugins_registry / name / "dev"
+    plugin_dir.parent.mkdir(parents=True, exist_ok=True)
+    if plugin_dir.exists() or plugin_dir.is_symlink():
+        if plugin_dir.is_symlink():
+            os.unlink(plugin_dir)
+        else:
+            shutil.rmtree(plugin_dir)
+    os.symlink(dest.resolve(), plugin_dir, target_is_directory=True)
+
+    click.echo(f"✔ Plugin skeleton created at {dest}")
+    click.echo(f"✔ Linked to registry -> ~/.pyartisan/plugins/{name}/dev")
+    click.echo(
+        f"👉 Edit hooks.py and stubs/, then test with "
+        f"`pyartisan plugin apply {name}` inside a sandbox project."
+    )
 
 
 @plugin_group.command(name="install")
