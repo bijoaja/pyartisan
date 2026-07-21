@@ -4,9 +4,6 @@ import subprocess
 import json
 from pathlib import Path
 import click
-import yaml
-
-from pyartisan.core.plugin_engine import ProjectContext, load_plugin_yaml
 
 
 def _global_registry() -> Path:
