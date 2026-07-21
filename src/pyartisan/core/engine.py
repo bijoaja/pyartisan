@@ -12,6 +12,7 @@ from pyartisan.renderer import render_stub
 from pyartisan.core.registration import apply_registration
 from pyartisan.utils.naming import name_parts
 from pyartisan import config as config_module
+import yaml
 
 
 def dispatch_new(framework: str, project_name: str) -> None:
@@ -52,6 +53,31 @@ def dispatch_new(framework: str, project_name: str) -> None:
         click.echo("❌ Git not found! Install Git first.")
         sys.exit(1)
 
+    # Generate .pyartisan/project.yaml (baca manifest.yaml di dalam template)
+    manifest_path = Path(project_name) / ".pyartisan" / "manifest.yaml"
+    template_name = framework + "iq"
+    template_version = "1.0"
+    if manifest_path.exists():
+        try:
+            with open(manifest_path, "r") as f:
+                m_data = yaml.safe_load(f)
+                template_name = m_data.get("id", template_name)
+                template_version = str(m_data.get("version", template_version))
+        except Exception:
+            pass
+
+    project_yaml = {
+        "project": {"name": project_name},
+        "framework": {"name": framework},
+        "template": {
+            "name": template_name,
+            "version": template_version
+        },
+        "plugins": []
+    }
+    with open(Path(project_name) / ".pyartisan" / "project.yaml", "w") as f:
+        yaml.dump(project_yaml, f)
+
     install_dependencies = click.confirm(
         "Do you want to create a virtual environment and install dependencies now?", default=True
     )
@@ -83,7 +109,6 @@ def dispatch_new(framework: str, project_name: str) -> None:
         sys.exit(1)
 
     click.echo("\n🎉 Project initialization complete!")
-    click.echo(f"   cd {project_name}")
     if os.name == "nt":
         click.echo("   venv\\Scripts\\activate")
     else:

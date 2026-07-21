@@ -28,7 +28,7 @@ class ProjectContext:
 
         # Load template metadata dari global registry (~/.pyartisan/)
         template_name = self.project_config["template"]["name"]
-        template_version = self.project_config["template"]["version"]
+        template_version = str(self.project_config["template"]["version"])
         self.global_registry = Path(os.path.expanduser("~")) / ".pyartisan"
         self.template_config_path = (
             self.global_registry / "templates" / template_name / template_version / "template.yaml"
