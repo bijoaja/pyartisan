@@ -63,30 +63,41 @@ project.create_service(...)
 
 PyArtisan Engine yang menentukan lokasi file berdasarkan framework.
 
+> **Catatan implementasi:** `create_service`/`register_router` mencoba
+> membaca `template.yaml` dari `~/.pyartisan/templates/<template>/<version>/`
+> (registry global) untuk path/marker kustom. File ini **belum pernah
+> diisi/diprovisikan** oleh command mana pun saat ini, jadi selalu kosong
+> (`{}`) dan kedua method jatuh ke path fallback hardcoded
+> (`app/service/{module}.py` untuk Flask, marker `# pyartisan:routers` di
+> `app/main.py`). Jangan bergantung pada kustomisasi `template.yaml` sampai
+> fitur ini benar-benar tersambung.
+
 ---
 
 # Plugin Development Workflow
 
-Pengembangan plugin terdiri dari beberapa tahap:
+Alur yang **sudah berjalan hari ini**:
 
 ```text
-Create Plugin
+pyartisan plugin init <name>   (scaffold + auto-link ke registry dev mode)
       │
       ▼
-Validate Plugin
+Edit hooks.py & stubs/
       │
       ▼
-Link Plugin (Development Mode)
+pyartisan plugin apply <name>  (di project sandbox)
       │
       ▼
-Apply Plugin
+Uji manual (jalankan project, cek hasil)
       │
       ▼
-Run Tests
-      │
-      ▼
-Publish to GitHub / Marketplace
+git push (publish manual ke GitHub — `pyartisan plugin publish` belum ada)
 ```
+
+> Tahap **Validate Plugin** dan **Run Tests** otomatis (`plugin validate`,
+> `plugin test`) yang disebut di versi awal dokumen ini **belum
+> diimplementasikan** — lihat catatan "Belum diimplementasikan" di
+> masing-masing bagian di bawah.
 
 ---
 
@@ -192,7 +203,9 @@ def after_install(project):
 
 # Project API
 
-Plugin menggunakan API berikut.
+`project` yang diterima hook adalah instance `ProjectContext`
+(`src/pyartisan/core/plugin_engine.py`). Berikut method yang **benar-benar
+ada saat ini** — jangan panggil selain ini di `hooks.py`.
 
 ## Framework
 
@@ -200,15 +213,8 @@ Plugin menggunakan API berikut.
 project.framework
 ```
 
-Return
-
-```
-fastapi
-
-flask
-
-django
-```
+Return salah satu dari `"fastapi"`, `"flask"`, `"django"` (dibaca dari
+`.pyartisan/project.yaml`).
 
 ---
 
@@ -217,78 +223,52 @@ django
 ```python
 project.create_service(
     name="payment",
-    stub_path="..."
+    stub_path="stubs/fastapi/service.py.jinja"   # path relatif ke root plugin
 )
 ```
 
----
-
-## Create Model
-
-```python
-project.create_model(...)
-```
-
----
-
-## Create Repository
-
-```python
-project.create_repository(...)
-```
-
----
-
-## Create Module
-
-```python
-project.create_module(...)
-```
+Merender file stub Jinja2 ke lokasi service sesuai `template.yaml` project
+(atau fallback `app/service/{module}.py` / `app/services/{module}.py`).
 
 ---
 
 ## Register Router
 
 ```python
-project.register_router(...)
+project.register_router("payment")
 ```
 
----
-
-## Register Blueprint
-
-```python
-project.register_blueprint(...)
-```
-
----
-
-## Add Environment Variable
-
-```python
-project.add_env(
-    "MIDTRANS_KEY",
-    "..."
-)
-```
+Menyisipkan baris import + registrasi router/blueprint di file & marker yang
+ditentukan `template.yaml` (fallback: `app/main.py`,
+marker `# pyartisan:routers`). Untuk Flask, method ini yang sama menulis
+baris `register_blueprint(...)` — **tidak ada** method `register_blueprint`
+terpisah.
 
 ---
 
 ## Add Dependency
 
 ```python
-project.add_dependency(
-    "midtrans-client"
-)
+project.add_dependency("midtrans-client")
 ```
+
+Menambahkan baris ke `requirements.txt` project jika file itu ada.
 
 ---
 
-## Add Configuration
-
-```python
-project.update_config(...)
-```
+> ### Belum diimplementasikan (Planned API)
+>
+> Method di bawah ini **tidak ada** di `ProjectContext` saat ini. Jangan
+> memanggilnya di `hooks.py` — akan gagal dengan `AttributeError`. Tercantum
+> di sini sebagai rencana API ke depan:
+>
+> ```python
+> project.create_model(...)
+> project.create_repository(...)
+> project.create_module(...)
+> project.add_env("MIDTRANS_KEY", "...")
+> project.update_config(...)
+> ```
 
 ---
 
@@ -296,34 +276,24 @@ project.update_config(...)
 
 Saat mengembangkan plugin, **tidak disarankan** menginstal plugin dari GitHub setiap kali melakukan perubahan.
 
-Gunakan **Development Mode**.
-
-Misalnya plugin berada di
-
-```text
-~/Projects/payment-midtrans
-```
-
-Jalankan
+`pyartisan plugin link` dan `pyartisan plugin dev` **tidak ada sebagai
+command terpisah**. Dev-mode symlink dibuat otomatis oleh salah satu dari
+dua command berikut:
 
 ```bash
-pyartisan plugin link ~/Projects/payment-midtrans
+# Kalau plugin baru dibuat di direktori kerja saat ini
+pyartisan plugin init payment-midtrans
+
+# Kalau plugin sudah ada di path lain
+pyartisan plugin install payment-midtrans --local ~/Projects/payment-midtrans
 ```
 
-atau
-
-```bash
-pyartisan plugin dev ~/Projects/payment-midtrans
-```
-
-PyArtisan akan membuat symbolic link ke direktori plugin.
-
-Contoh
+Keduanya membuat symlink yang sama:
 
 ```text
 ~/.pyartisan/plugins/
 
-payment-midtrans
+payment-midtrans/dev
     ─────────────►
 ~/Projects/payment-midtrans
 ```
@@ -343,7 +313,7 @@ Untuk menguji plugin, buat project kosong.
 Contoh
 
 ```bash
-pyartisan new sandbox --framework fastapi
+pyartisan new fastapi sandbox
 ```
 
 Masuk ke project
@@ -370,7 +340,13 @@ uvicorn app.main:app --reload
 
 # Validasi Plugin
 
-Sebelum plugin dijalankan, lakukan validasi.
+> **Belum diimplementasikan.** `pyartisan plugin validate` tidak ada di CLI
+> saat ini. Command yang tersedia sekarang untuk pemeriksaan kesehatan
+> adalah `pyartisan plugin doctor` (lihat bagian "Plugin Doctor" di bawah,
+> dan catatan perbedaan scope-nya). Bagian di bawah ini adalah rencana API
+> validasi ke depan.
+
+Rencana: sebelum plugin dijalankan, lakukan validasi.
 
 ```bash
 pyartisan plugin validate
@@ -416,7 +392,12 @@ stubs/fastapi/service.py.jinja
 
 # Testing Plugin
 
-Untuk memastikan plugin bekerja dengan baik.
+> **Belum diimplementasikan.** `pyartisan plugin test` tidak ada di CLI
+> saat ini. Untuk sekarang, uji plugin secara manual lewat alur "Membuat
+> Project Sandbox" di atas (`plugin apply` lalu jalankan project-nya
+> langsung). Bagian di bawah ini adalah rencana ke depan.
+
+Rencana: untuk memastikan plugin bekerja dengan baik secara otomatis.
 
 ```bash
 pyartisan plugin test
@@ -457,7 +438,9 @@ Plugin successfully tested.
 
 # Multi Framework Test
 
-Plugin dapat diuji terhadap semua framework.
+> **Belum diimplementasikan** — sama seperti `plugin test` di atas.
+
+Rencana: plugin dapat diuji terhadap semua framework.
 
 ```bash
 pyartisan plugin test --all
@@ -510,107 +493,106 @@ Developer dapat mengetahui framework mana yang belum kompatibel.
 
 # Plugin Doctor
 
-Untuk analisis lengkap plugin.
+`pyartisan plugin doctor` **sudah ada**, tapi scope-nya berbeda dari
+deskripsi rencana sebelumnya: perintah ini mendiagnosis kesehatan **project
+aktif** (bukan struktur plugin itu sendiri) — dijalankan di dalam project
+yang sudah punya `.pyartisan/project.yaml`.
 
 ```bash
 pyartisan plugin doctor
 ```
 
-Contoh
+Yang benar-benar diperiksa (lihat `cli/commands/plugin.py`):
+
+* **Manifest** — `project.yaml` punya `framework.name`.
+* **Framework** — `ProjectContext` berhasil dibuat.
+* **Template Metadata** — `template.yaml` template project ditemukan di
+  `~/.pyartisan/templates/<template>/<version>/template.yaml` (registry
+  global — bukan di dalam plugin).
+* **Dependencies** — tiap plugin yang `applied` ke project ini: dependency
+  pip di `manifest.yaml`-nya sudah ada di `requirements.txt` project.
+* **Marker** — marker registrasi router (mis. `# pyartisan:routers`) masih
+  ada di file target sesuai `template.yaml`.
+
+Diakhiri dengan `Plugin is valid` atau `Plugin has issues, see above.`.
+
+Pemeriksaan struktur plugin itu sendiri (assets, per-framework stub
+coverage seperti contoh di bawah) **belum diimplementasikan**:
 
 ```text
-Plugin
-
-✔ Manifest
-
-✔ Hooks
-
-✔ Dependencies
-
-✔ Assets
-
-✔ Templates
-
 Framework Support
 
 ✔ FastAPI
-
 ✔ Flask
-
 ✖ Django
 
 Reason
-
-Missing:
-
-stubs/django/
+Missing: stubs/django/
 ```
 
 ---
 
 # Local Installation
 
-Untuk mensimulasikan instalasi seperti pengguna akhir.
+Untuk mensimulasikan instalasi seperti pengguna akhir, gunakan flag
+`--local` (bukan path sebagai argumen langsung):
 
 ```bash
-pyartisan plugin install ~/Projects/payment-midtrans
+pyartisan plugin install payment-midtrans --local ~/Projects/payment-midtrans
 ```
 
-Plugin akan disalin ke direktori plugin PyArtisan.
-
-Contoh
-
-```text
-~/.pyartisan/plugins/
-```
-
+Ini membuat symlink dev-mode ke `~/.pyartisan/plugins/payment-midtrans/dev/`
+(mekanisme yang sama dijelaskan di "Development Mode" — bukan copy fisik).
 Mode ini berguna untuk memastikan proses instalasi berjalan dengan benar.
 
 ---
 
 # Install from GitHub
 
+Format argumen harus `github-username/repo-name` (bukan URL penuh):
+
 ```bash
-pyartisan plugin install https://github.com/username/payment-midtrans
+pyartisan plugin install username/payment-midtrans
 ```
 
 PyArtisan akan:
 
-1. Clone repository
-2. Validasi `manifest.yaml`
-3. Install dependency
-4. Registrasi plugin
-5. Menjalankan hook `after_install`
+1. Clone `https://github.com/username/payment-midtrans.git` ke
+   `~/.pyartisan/plugins/payment-midtrans/1.0.0/`
+2. Membaca `manifest.yaml` (gagal jika tidak ada)
+
+Instalasi dependency, registrasi ke project, dan hook `after_install`
+**baru dijalankan saat `pyartisan plugin apply <name>`** — bukan saat
+`install`. `install` hanya menaruh plugin ke registry global, tidak
+menyentuh project mana pun.
 
 ---
 
 # Install from Marketplace
 
 ```bash
-pyartisan plugin install payment-midtrans
+pyartisan plugin install payment-midtrans --license valid-xxxxxx
 ```
 
-Marketplace akan mencari plugin berdasarkan `id` pada `manifest.yaml`.
+Verifikasi lisensi saat ini **mocked** — `_verify_blockchain_license` di
+`marketplace/core.py` menerima kunci apa pun yang berawalan `valid-`.
+Integrasi Blockchain API/smart contract nyata belum ada.
 
 ---
 
 # Publish Plugin
 
-Setelah plugin selesai dikembangkan.
+> **Belum diimplementasikan.** `pyartisan plugin publish` tidak ada di CLI
+> saat ini — tidak ada Marketplace submission otomatis.
 
-Push ke GitHub
+Untuk sekarang, "publikasi" plugin cukup lewat push manual ke GitHub:
 
 ```bash
 git push origin main
 ```
 
-Kemudian publish
-
-```bash
-pyartisan plugin publish
-```
-
-PyArtisan akan
+Pengguna lain menginstalnya dengan `pyartisan plugin install
+<github-user>/<repo-name>`. Rencana ke depan (`plugin publish`) akan:
 
 * memvalidasi plugin
 * membuat package
@@ -655,36 +637,29 @@ Plugin yang gagal validasi tidak akan dipublikasikan.
 
 # Recommended Development Workflow
 
+Alur nyata hari ini (command yang benar-benar ada):
+
 ```text
-Create Plugin
+pyartisan plugin init <name>
       │
       ▼
-pyartisan plugin validate
+Edit hooks.py & stubs/
       │
       ▼
-pyartisan plugin link .
+pyartisan plugin apply <name>   (di project sandbox)
       │
       ▼
-pyartisan plugin test --all
+Uji manual, perbaiki jika ada masalah
       │
       ▼
-Fix Issues (if any)
+Commit & push ke GitHub
       │
       ▼
-Commit Changes
-      │
-      ▼
-Push to GitHub
-      │
-      ▼
-pyartisan plugin publish
-      │
-      ▼
-Marketplace Validation
-      │
-      ▼
-Available for Installation
+Pengguna lain: pyartisan plugin install <user>/<repo>
 ```
+
+Rencana ke depan (belum ada): `plugin validate`, `plugin test --all`,
+`plugin publish`, dan Marketplace validation otomatis.
 
 ## Rekomendasi Tambahan
 
