@@ -143,6 +143,17 @@ pyartisan/
 
 Tidak ada lagi package top-level terpisah per framework (`flasktool/`, `fastapitool/`) — semua plugin framework konkret hidup nested di dalam `pyartisan/plugin/`.
 
+> **Catatan implementasi:** goal "tidak ada package top-level per
+> framework" sudah tercapai, tapi caranya berbeda dari desain di atas.
+> Tidak ada folder `pyartisan/plugin/flask/` atau `pyartisan/plugin/fastapi/`
+> di `src/pyartisan/`. Sebagai gantinya, Flask/FastAPI diimplementasikan
+> sebagai template repo eksternal (FlaskIQ, FastIQ) yang di-clone oleh
+> `pyartisan new`, dan generator dibaca dari `.pyartisan/manifest.yaml`
+> milik project — bukan built-in plugin nested di `core`. `detector.py`
+> juga belum ada (lihat §10). Struktur nyata saat ini: `cli/`, `core/`,
+> `project/` (placeholder), `renderer/`, `marketplace/`, `config/`, `utils/`,
+> `shared/` — tanpa `plugin/`.
+
 ---
 
 # 7. Core Responsibilities
@@ -186,13 +197,17 @@ Begitu pula framework lain.
 
 # 9. CLI Design
 
+> **Catatan implementasi (per repo saat ini):** command aktual memakai
+> `new` (bukan `init`) dan `make <target> <name>` dengan spasi (bukan
+> `make:target`) — lihat [CLI.md](CLI.md) untuk referensi command yang
+> sudah sinkron dengan kode.
+
 ## Project Creation
 
 ```
-pyartisan init flask myapp
+pyartisan new flask myapp
 
-pyartisan init fastapi api
-
+pyartisan new fastapi api
 ```
 
 ---
@@ -200,18 +215,21 @@ pyartisan init fastapi api
 ## Generate
 
 ```
-Baca README.md section '## USAGE'
+Baca CLI.md section '## 3. Generator Kode (make)'
 ```
 
-Framework akan dideteksi otomatis.
+Framework **tidak** dideteksi otomatis dari file (lihat catatan di §10) —
+ditentukan sekali saat `pyartisan new` dan disimpan di
+`.pyartisan/project.yaml` / `.pyartisan/manifest.yaml`.
 
 ---
 
 ## Explicit Framework
 
-```
-pyartisan make:controller --framework flask
-```
+Rencana desain ini (memilih framework lewat `--framework` di `make`)
+**belum diimplementasikan**. `make` tidak punya flag `--framework` — target
+project selalu ditentukan oleh `.pyartisan/manifest.yaml` yang sudah ada
+di dalam project aktif.
 
 ---
 
@@ -252,10 +270,17 @@ pyartisan version
 
 # 10. Framework Detection
 
+> **Belum diimplementasikan.** Tidak ada `detector.py` maupun deteksi
+> berbasis isi file (`Flask(`, `FastAPI(`, dst.) di kode saat ini. Framework
+> project ditentukan secara eksplisit sekali di `pyartisan new <framework>
+> <name>` dan dibaca kembali dari `.pyartisan/project.yaml` /
+> `.pyartisan/manifest.yaml` oleh command lain. Bagian di bawah adalah
+> desain yang direncanakan.
+
 Saat command dijalankan:
 
 ```
-pyartisan make:controller
+pyartisan make controller Post
 ```
 
 Core melakukan deteksi.
@@ -387,6 +412,13 @@ Template di clone dari repository github (seperti konsep pada pyartisan/plugin/f
 ```
 
 Framework hanya membaca template miliknya.
+
+> **Catatan implementasi:** clone dari GitHub sudah berjalan, tapi lewat
+> `dispatch_new()` di `core/engine.py` (bukan modul
+> `pyartisan/plugin/flask/commands/init_project` — path itu tidak ada).
+> URL template disimpan di `~/.pyartisan/config.toml` (`templates.flask`,
+> `templates.fastapi`), diubah lewat `pyartisan config set templates.<fw>
+> <url>`.
 
 ---
 

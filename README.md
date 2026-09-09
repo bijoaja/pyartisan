@@ -1,20 +1,21 @@
 # PyArtisan
 
-PyArtisan is an AI-powered, multi-framework Python web development toolkit,
-inspired by Laravel Artisan. It provides a single CLI (`pyartisan`) that
-detects your project's framework and dispatches to the right generator —
-starting with full support for Flask (via the [FlaskIQ](https://github.com/bijoaja/flaskiq)
-project conventions), with FastAPI wired in as a structural placeholder for
-a future release.
+PyArtisan is a multi-framework Python web development toolkit, inspired by
+Laravel Artisan. It provides a single CLI (`pyartisan`) that clones a
+framework template into a new project and then reads that project's
+`.pyartisan/manifest.yaml` to generate code — full support for Flask (via the
+[FlaskIQ](https://github.com/bijoaja/flaskiq) project conventions), with
+FastAPI (via [FastIQ](https://github.com/bijoaja/fastiq)) as a structural
+placeholder for a future release.
 
 ## Features
 
-- Artisan-like CLI, framework-agnostic core with per-framework plugins
-- Automatic framework detection (Flask now, FastAPI/Django planned)
+- Artisan-like CLI, framework-agnostic core driven by per-project manifest
+- Manifest-driven code generation (`make`) — no hardcoded generator per framework
 - Full 5-layer Flask scaffold: Routes → Controller → Service → Repository → Model
 - Auto install dependencies on project init
-- Database migrations via Flask-Migrate
-- Docker support for dev and production environments
+- Docker-first `serve` with local-venv fallback
+- A package-manager-style plugin system (install/apply/remove, see [CLI.md](CLI.md#7-sistem-plugin))
 - Persistent config at `~/.pyartisan/config.toml`
 - `doctor` command to check your local dev environment
 - Python 3.10+ support
@@ -24,8 +25,8 @@ a future release.
 Install directly from source:
 
 ```bash
-git clone https://github.com/bijoaja/flaskartisan.git
-cd flaskartisan
+git clone https://github.com/bijoaja/pyartisan.git
+cd pyartisan
 pip install -e .
 ```
 
@@ -47,114 +48,62 @@ pyartisan --help
 ### Initialize a new project
 
 ```bash
-pyartisan init flask myapp
+pyartisan new flask myapp
+pyartisan new fastapi myapi
 ```
 
-Clones the FlaskIQ template and optionally sets up a virtual environment.
-
-FastAPI isn't implemented yet (`pyartisan init fastapi api` will report it's
-not supported); use `pyartisan fastapi status` to check its placeholder state.
+Clones the framework template (FlaskIQ for `flask`, FastIQ for `fastapi`, see
+`pyartisan config show` for the URLs) and optionally sets up a virtual
+environment plus `requirements.txt` install. Template URLs can be overridden
+with `pyartisan config set templates.<framework> <url>`.
 
 ### Framework detection
 
-Most commands below auto-detect the framework from files in the current
-directory (`app.py` + `Flask(`/`create_app(` for Flask, `main.py` + `FastAPI(`
-for FastAPI). If detection fails, pass `--framework` explicitly:
+There is no filesystem-based auto-detection. The framework is recorded once,
+at `pyartisan new` time, in `.pyartisan/project.yaml` (and template metadata
+in `.pyartisan/manifest.yaml`). Commands like `make` and `serve` read that
+manifest — always run them from inside a project created by `pyartisan new`.
+
+### Scaffold code (`make`)
 
 ```bash
-pyartisan make:model Post --framework flask
+pyartisan make <target> <name> [--force] [--<option> <value> ...]
 ```
 
-If no framework can be detected and `--framework` isn't given:
-
-```
-Project framework cannot be detected.
-Please specify:
-  --framework flask
-```
-
-### Scaffold a controller
-
-Generates a controller, service, and route file for the given feature.
+`make` reads `.pyartisan/manifest.yaml` inside the project to know which
+generators exist (`model`, `controller`, `service`, `repository`, etc. —
+depends on the template). Extra `--option value` pairs are passed straight
+into the Jinja2 render context (e.g. `--type`, `--version`).
 
 ```bash
-# View controller (HTML responses)
-pyartisan make:controller Post --type view
+# Controller (route + controller + service for the feature)
+pyartisan make controller Post --type view
+pyartisan make controller Post --type api
+pyartisan make controller Post --type api --version 2
 
-# API controller (JSON responses, versioned)
-pyartisan make:controller Post --type api
+# Standalone service
+pyartisan make service Post --type view
 
-# Fullstack (view + API in one command)
-pyartisan make:controller Post --type fullstack
+# Model — generates a model file and updates app/model/__init__.py
+pyartisan make model Post
 
-# Specify API version (default: 1)
-pyartisan make:controller Post --type api --version 2
+# Repository — generates a data-access class and updates app/repository/__init__.py
+pyartisan make repository Post
 ```
 
-### Scaffold a standalone service
-
-```bash
-pyartisan make:service Post --type view
-pyartisan make:service Post --type api
-```
-
-### Scaffold a model
-
-Generates a separate model file with `to_dict()` and updates `app/model/__init__.py`:
-
-```bash
-pyartisan make:model Post
-```
-
-### Scaffold a repository
-
-Generates a data-access repository class and updates `app/repository/__init__.py`:
-
-```bash
-pyartisan make:repository Post
-```
-
-### Database migrations
-
-```bash
-# Create a migration
-pyartisan make:migrations -m "add posts table"
-
-# Create and immediately apply
-pyartisan make:migrations -m "add posts table" --upgrade
-```
-
-### Generate Docker files
-
-Creates `Docker/Dockerfile` (prod), `Docker/Dockerfile.dev`, and `docker-compose.yml`:
-
-```bash
-pyartisan make:docker
-```
-
-### Copy environment file
-
-```bash
-pyartisan make:env
-```
+Unknown targets, or running outside a project with `.pyartisan/manifest.yaml`,
+fail with a clear error.
 
 ### Run the dev server
-
-**Local** (requires active virtual environment and `server.py`):
 
 ```bash
 pyartisan serve
 ```
 
-**Docker** (requires `Docker/Dockerfile.dev` and `docker-compose.yml`):
-
-```bash
-# Start containers
-pyartisan serve --docker
-
-# Start and rebuild image
-pyartisan serve --docker --build
-```
+No flags — `serve` auto-detects the strategy: uses Docker (`docker compose up`)
+if `docker-compose.yml` exists and Docker is running, otherwise falls back to
+the `scripts.serve` command from `.pyartisan/manifest.yaml` inside an active
+virtualenv, otherwise prints instructions to fix your setup.
 
 ### Build production Docker image
 
@@ -194,10 +143,10 @@ project_name/
 ├── app/
 │   ├── __init__.py
 │   ├── routes/
-│   │   ├── post.py               # Blueprint per feature (make:controller --type view)
+│   │   ├── post.py               # Blueprint per feature (make controller --type view)
 │   │   └── api/
 │   │       └── v1/
-│   │           └── __init__.py   # API resource registrations (make:controller --type api)
+│   │           └── __init__.py   # API resource registrations (make controller --type api)
 │   ├── controller/
 │   │   ├── view/
 │   │   │   └── post/
@@ -217,10 +166,10 @@ project_name/
 │   │           └── post_service.py
 │   ├── repository/
 │   │   ├── __init__.py
-│   │   └── post_repository.py    # make:repository Post
+│   │   └── post_repository.py    # make repository Post
 │   ├── model/
 │   │   ├── __init__.py
-│   │   └── post.py               # make:model Post
+│   │   └── post.py               # make model Post
 │   ├── templates/
 │   └── static/
 ├── utils/
@@ -241,8 +190,12 @@ project_name/
 
 PyArtisan is a single package (`src/pyartisan/`) — a framework-agnostic
 engine whose thin `cli/` parser dispatches, via `core/engine.py`, to
-built-in framework plugins living under `pyartisan/plugin/` (`plugin/flask/`,
-`plugin/fastapi/`). There are no separate top-level packages per framework.
+generators driven by each project's own `.pyartisan/manifest.yaml`. There is
+no hardcoded Flask/FastAPI code in the core; framework support lives in the
+FlaskIQ/FastIQ template repos themselves. A separate community/marketplace
+plugin system exists on top of this (installed under `~/.pyartisan/plugins/`
+and applied to a project via `pyartisan plugin apply`) — see
+[CLI.md](CLI.md#7-sistem-plugin) and [HOW_TO_CREATE_PLUGIN.md](HOW_TO_CREATE_PLUGIN.md).
 See `CLAUDE.md` for the full directory breakdown.
 
 Generated Flask code follows the FlaskIQ 5-layer architecture:
