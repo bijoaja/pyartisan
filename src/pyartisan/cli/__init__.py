@@ -1,3 +1,5 @@
+import sys
+
 import click
 
 from pyartisan import __version__
@@ -11,6 +13,20 @@ from pyartisan.cli.commands import (
     version_cmd,
     plugin_group,
 )
+
+
+def _force_utf8(*streams) -> None:
+    """Output uses symbols like ✔ and ❌; legacy Windows codepages (cp1252) crash on them."""
+    for s in streams or (sys.stdout, sys.stderr):
+        if s is not None and (getattr(s, "encoding", None) or "").lower().replace("-", "") != "utf8":
+            try:
+                s.reconfigure(encoding="utf-8")
+            except (AttributeError, ValueError):
+                pass  # not a TextIOWrapper (e.g. replaced stream); leave as is
+
+
+# Run at import so it also covers `--help` and errors raised before the group callback.
+_force_utf8()
 
 
 @click.group()

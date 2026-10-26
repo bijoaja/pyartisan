@@ -776,7 +776,27 @@ def test_uv_support():
     print("OK  uv_support")
 
 
+def test_force_utf8():
+    import io
+    from pyartisan.cli import _force_utf8
+
+    buf = io.BytesIO()
+    s = io.TextIOWrapper(buf, encoding="cp1252")
+    try:
+        s.write("✔")
+        raise AssertionError("cp1252 should not encode ✔")
+    except UnicodeEncodeError:
+        pass
+    s = io.TextIOWrapper(io.BytesIO(), encoding="cp1252")
+    _force_utf8(s, None, object())  # None and non-TextIOWrapper must not raise
+    s.write("✔❌")
+    s.flush()
+    assert s.encoding == "utf-8"
+    print("OK  force_utf8")
+
+
 def main():
+    test_force_utf8()
     test_uv_support()
     test_name_parts()
     test_manifest_load()
