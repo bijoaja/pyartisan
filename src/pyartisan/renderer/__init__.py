@@ -30,7 +30,7 @@ def render_stub(stub_dir: Path, dest_dir: Path, context: dict, force: bool = Fal
             dest_file_path = dest_dir / rendered_rel_path_str
 
             # Content rendering
-            template = env.get_template(str(rel_path))
+            template = env.get_template(rel_path.as_posix())  # Jinja only accepts '/' (str() gives '\' on Windows)
             content = template.render(context)
 
             write_file(str(dest_file_path), content, overwrite=force)
