@@ -753,7 +753,31 @@ def test_cli_plugin_init_existing_directory():
     print("OK  cli_plugin_init_existing_directory")
 
 
+def test_uv_support():
+    import pyartisan.core.engine as engine
+    import pyartisan.shared.doctor as doctor
+
+    # doctor: uv optional, pip optional when uv present
+    orig_which = shutil.which
+    try:
+        shutil.which = lambda n: None
+        assert doctor._check_uv()[0] is True
+        assert doctor._check_pip()[0] is False
+        shutil.which = lambda n: "/x/uv" if n == "uv" else None
+        assert doctor._check_pip()[0] is True
+    finally:
+        shutil.which = orig_which
+
+    # installer command selection
+    assert engine._venv_cmd("/x/uv") == ["/x/uv", "venv", "venv"]
+    assert engine._venv_cmd(None)[1:] == ["-m", "venv", "venv"]
+    assert engine._install_cmd("/x/uv", "py", "r.txt") == ["/x/uv", "pip", "install", "--python", "py", "-r", "r.txt"]
+    assert engine._install_cmd(None, "py", "r.txt") == ["py", "-m", "pip", "install", "-r", "r.txt"]
+    print("OK  uv_support")
+
+
 def main():
+    test_uv_support()
     test_name_parts()
     test_manifest_load()
     test_render_stub()

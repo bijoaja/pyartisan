@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Instalasi
 Pasang dependencies secara lokal dalam mode editable:
 ```bash
-pip3 install -e .
+uv tool install --editable .   # atau: pip3 install -e .
 ```
 
 ### Menjalankan CLI secara Lokal

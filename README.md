@@ -22,13 +22,23 @@ placeholder for a future release.
 
 ## Installation
 
-Install directly from source:
+Recommended — with [uv](https://docs.astral.sh/uv/) (isolated; no venv, system Python untouched):
+
+```bash
+uv tool install git+https://github.com/bijoaja/pyartisan
+# or run without installing:
+uvx --from git+https://github.com/bijoaja/pyartisan pyartisan --help
+```
+
+From source:
 
 ```bash
 git clone https://github.com/bijoaja/pyartisan.git
 cd pyartisan
-pip install -e .
+uv tool install .          # or: pip install -e .
 ```
+
+When `uv` is on `PATH`, `pyartisan new` also creates the project venv and installs dependencies with uv (falls back to venv + pip otherwise).
 
 ## Requirements
 

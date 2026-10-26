@@ -15,6 +15,16 @@ from pyartisan import config as config_module
 import yaml
 
 
+def _venv_cmd(uv: str | None) -> list[str]:
+    return [uv, "venv", "venv"] if uv else [sys.executable, "-m", "venv", "venv"]
+
+
+def _install_cmd(uv: str | None, venv_python: str, req_file: str) -> list[str]:
+    if uv:
+        return [uv, "pip", "install", "--python", venv_python, "-r", req_file]
+    return [venv_python, "-m", "pip", "install", "-r", req_file]
+
+
 def dispatch_new(framework: str, project_name: str) -> None:
     """Initialize a new project by cloning the framework template."""
     config_data = config_module.load()
@@ -86,9 +96,10 @@ def dispatch_new(framework: str, project_name: str) -> None:
         return
 
     os.chdir(project_name)
-    click.echo("⚙ Creating virtual environment (venv)...")
+    uv = shutil.which("uv")
+    click.echo(f"⚙ Creating virtual environment (venv{' via uv' if uv else ''})...")
     try:
-        subprocess.run([sys.executable, "-m", "venv", "venv"], check=True)
+        subprocess.run(_venv_cmd(uv), check=True)
         click.echo("✔ Virtual environment created successfully.")
     except Exception as e:
         click.echo(f"❌ Failed to create venv: {e}")
@@ -102,7 +113,7 @@ def dispatch_new(framework: str, project_name: str) -> None:
 
     click.echo("📦 Installing dependencies from requirements.txt ...")
     try:
-        subprocess.run([venv_python, "-m", "pip", "install", "-r", req_file], check=True)
+        subprocess.run(_install_cmd(uv, venv_python, req_file), check=True)
         click.echo("✔ Dependencies installed successfully.")
     except Exception as e:
         click.echo(f"❌ Failed to install dependencies: {e}")
