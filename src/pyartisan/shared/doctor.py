@@ -12,10 +12,23 @@ def _check_python() -> tuple[bool, str]:
     return ok, f"Python {version}" + ("" if ok else " (requires >=3.10)")
 
 
+def _check_uv() -> tuple[bool, str]:
+    uv_path = shutil.which("uv")
+    if not uv_path:
+        return True, "uv not found (optional; pip is used instead)"
+    try:
+        out = subprocess.run([uv_path, "--version"], capture_output=True, text=True, check=True)
+        return True, out.stdout.strip()
+    except Exception as e:
+        return False, f"uv check failed: {e}"
+
+
 def _check_pip() -> tuple[bool, str]:
+    # Under `uv tool install` the tool env has no pip; uv replaces it.
+    uv = shutil.which("uv")
     pip_path = shutil.which("pip") or shutil.which("pip3")
     if not pip_path:
-        return False, "pip not found on PATH"
+        return (True, "pip not found (uv available)") if uv else (False, "pip not found on PATH")
     try:
         out = subprocess.run(
             [sys.executable, "-m", "pip", "--version"],
@@ -23,7 +36,7 @@ def _check_pip() -> tuple[bool, str]:
         )
         return True, out.stdout.strip()
     except Exception as e:
-        return False, f"pip check failed: {e}"
+        return (True, "pip missing in this env (uv available)") if uv else (False, f"pip check failed: {e}")
 
 
 def _check_git() -> tuple[bool, str]:
@@ -46,6 +59,7 @@ def _check_venv() -> tuple[bool, str]:
 
 CHECKS = [
     ("Python", _check_python),
+    ("Uv", _check_uv),
     ("Pip", _check_pip),
     ("Git", _check_git),
     ("Virtual Environment", _check_venv),

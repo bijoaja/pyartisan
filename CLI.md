@@ -7,8 +7,11 @@ Dokumen ini merangkum seluruh perintah `pyartisan`: pembuatan project, generator
 ## 1. Instalasi
 
 ```bash
-pip3 install -e .
+uv tool install .    # terisolasi, tanpa venv manual
+# atau: pip3 install -e .
 ```
+
+Tanpa install: `uvx --from . pyartisan --help`. Jika `uv` ada di PATH, `pyartisan new` memakai `uv venv` + `uv pip install`; jika tidak, fallback ke venv + pip.
 
 Verifikasi instalasi:
 
