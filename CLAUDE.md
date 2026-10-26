@@ -18,13 +18,21 @@ pyartisan --help
 ### Pengujian & Linting
 Tidak ada framework test (pytest/unittest) sebagai dependency — self-check assert-based ada di `tests/smoke_test.py`. Jalankan:
 ```bash
-PYTHONPATH=src python3 tests/smoke_test.py
+PYTHONPATH=src uv run --no-project --with click --with jinja2 --with pyyaml --with flask --with sqlalchemy python tests/smoke_test.py
 ```
-Cover: `name_parts`, `detect_framework`, `config` load/save/reset, `plugin_loader`, dan alur CLI end-to-end (`version`, `doctor`, `config show`, `make:model` dengan deteksi otomatis maupun `--framework` eksplisit).
+(Jika `python` sudah ada di venv yang berisi dependency project, cukup `PYTHONPATH=src python tests/smoke_test.py`. Jangan pakai `uv run --with-editable .`: itu membuat `uv.lock` yang tak terlacak.)
+
+Cover: `name_parts`, `load_manifest`, `render_stub`, registrasi (`import_list`, `marker`), `config` load/save/reset, `make` generik (termasuk target tidak dikenal dan tanpa manifest), `ProjectContext`, seluruh siklus `plugin` (`init`, `install`, `apply`, `remove`, `uninstall`, `list`, `info`, `status`, `doctor`), pemilihan installer uv vs pip, pemaksaan UTF-8, dan pemilihan venv project untuk `serve`. Keluaran yang benar berakhir `ALL SMOKE TESTS PASSED`.
 
 ## Arsitektur Codebase
 
-PyArtisan adalah **satu package** (`src/pyartisan/`) — sebuah engine CLI multi-framework, murni framework-agnostic di intinya. Tidak ada lagi package top-level terpisah per framework (`flasktool`, `fastapitool`); setiap dukungan framework konkret adalah **built-in plugin** yang hidup di dalam `pyartisan.plugin.<nama_framework>` (lihat `PRD.md` untuk desain lengkap).
+PyArtisan adalah **satu package** (`src/pyartisan/`) — sebuah engine CLI multi-framework, murni framework-agnostic di intinya. Tidak ada package top-level terpisah per framework, dan **tidak ada** modul `pyartisan/plugin/` maupun `FrameworkPlugin` (itu rancangan lama di `docs/id/PRD.md`, bukan kode). Pengetahuan framework ada di template repo (FlaskIQ, FastIQ) yang di-clone oleh `pyartisan new`, lewat `.pyartisan/manifest.yaml` milik project.
 
+Peta `src/pyartisan/`:
+- `cli/commands/` — satu file per command; hanya mem-parse argumen lalu memanggil `core/engine.py`.
+- `core/` — `engine.py` (`dispatch_new/make/serve/build`), `manifest.py`, `registration.py`, `plugin_engine.py` (`ProjectContext`, Project API untuk hook plugin), `exceptions.py`.
+- `marketplace/` — registry plugin global `~/.pyartisan/plugins/` (usage tracking, pemuat `hooks.py`). Ini sistem plugin untuk pengguna (`pyartisan plugin ...`) dan **sudah ada**, berbeda dari modul `plugin/` rancangan lama.
+- `project/` — placeholder Project API, belum berisi kode.
+- `renderer/`, `config/`, `shared/`, `utils/`, `templates/plugin_init/` — render Jinja2, `config.toml`, logika doctor, helper, skeleton `plugin init`.
 
-Menambah framework baru (mis. Django) cukup: buat sub-package baru `pyartisan/plugin/django/` dengan `plugin.py` yang mengimplementasi `FrameworkPlugin`, tambah 1 baris ke `_REGISTRY` di `plugin/registry.py` — tidak perlu ubah apa pun di `pyartisan/core/` atau `pyartisan/cli/`.
+Menambah framework baru (mis. Django) cukup: siapkan template repo dengan `.pyartisan/manifest.yaml`, lalu daftarkan URL-nya di `DEFAULT_CONFIG["templates"]` pada `src/pyartisan/config/__init__.py` — tidak perlu ubah `pyartisan/core/` atau `pyartisan/cli/`. Panduan lengkap ada di `docs/id/CONTRIBUTING.md`.

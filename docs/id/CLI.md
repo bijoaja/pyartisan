@@ -1,17 +1,34 @@
 # PyArtisan CLI — Dokumentasi Penggunaan
 
+> **Bahasa:** Indonesia | [English](../en/CLI.md)
+> **Terakhir diverifikasi terhadap kode:** commit `80b5acc` (2026-10-26)
+
 Dokumen ini merangkum seluruh perintah `pyartisan`: pembuatan project, generator kode, manajemen konfigurasi, dan sistem plugin (komunitas & marketplace).
 
 ---
 
 ## 1. Instalasi
 
+Dengan [uv](https://docs.astral.sh/uv/) (terisolasi, tanpa venv manual, Python sistem tidak tersentuh):
+
 ```bash
-uv tool install .    # terisolasi, tanpa venv manual
-# atau: pip3 install -e .
+uv tool install git+https://github.com/bijoaja/pyartisan
 ```
 
-Tanpa install: `uvx --from . pyartisan --help`. Jika `uv` ada di PATH, `pyartisan new` memakai `uv venv` + `uv pip install`; jika tidak, fallback ke venv + pip.
+Dari source:
+
+```bash
+git clone https://github.com/bijoaja/pyartisan.git
+cd pyartisan
+uv tool install .              # atau: uv tool install --editable .
+# alternatif tanpa uv: pip install -e .
+```
+
+`--editable` adalah flag bawaan `uv tool install` (bukan milik pyartisan): kode di `src/` langsung dipakai tanpa install ulang, cocok untuk kontributor.
+
+Tanpa install: `uvx --from git+https://github.com/bijoaja/pyartisan pyartisan --help`.
+
+Jika `pyartisan` tidak ditemukan setelah install, jalankan `uv tool update-shell` lalu buka terminal baru.
 
 Verifikasi instalasi:
 
@@ -36,8 +53,14 @@ pyartisan new flask blog
 ```
 
 Yang terjadi:
-1. Meng-clone template resmi (`FastIQ` untuk FastAPI, `FlaskIQ` untuk Flask)
-2. Menawarkan pembuatan virtual environment (`venv`) dan instalasi `requirements.txt`.
+1. Memeriksa bahwa folder `<name>` belum ada (jika sudah, perintah berhenti).
+2. `git clone` template resmi (`FastIQ` untuk FastAPI, `FlaskIQ` untuk Flask) ke folder `<name>`, lalu menghapus remote `origin`. **Git harus terpasang.**
+3. Menulis `.pyartisan/project.yaml` (nama project, framework, nama dan versi template, daftar plugin kosong).
+4. Menanyakan apakah virtual environment dan dependency ingin dibuat sekarang (default: ya). Jika ya, membuat `./venv` dan memasang `requirements.txt`:
+   * Jika `uv` ada di PATH: `uv venv venv` lalu `uv pip install --python <venv> -r requirements.txt`.
+   * Jika tidak: `python -m venv venv` lalu `pip install -r requirements.txt`.
+
+Framework yang tidak terdaftar di config menghasilkan error `No template registered for framework ...` beserta daftar yang tersedia.
 
 URL template dapat diubah lewat `pyartisan config set templates.<framework> <url>` (lihat [Konfigurasi](#5-konfigurasi)).
 
@@ -61,9 +84,9 @@ pyartisan make service Payment --version 2
 
 Opsi:
 - `--force` — timpa file yang sudah ada.
-- `--<nama opsi> <nilai>` — argumen dinamis apa pun yang dipakai stub template (mis. `--type`, `--version`), diteruskan ke context rendering Jinja2.
+- `--<nama opsi> <nilai>` — argumen dinamis apa pun yang dipakai stub template, diteruskan ke context rendering Jinja2. Tanda hubung diubah menjadi garis bawah (`--my-opt` menjadi `my_opt`). Opsi tanpa nilai di akhir menjadi `True`. Bawaan: `type` = `view`, `version` = `1`.
 
-Jika target tidak dikenal atau project tidak memiliki `.pyartisan/manifest.yaml`, perintah gagal dengan pesan error yang jelas.
+Jika target tidak dikenal atau project tidak memiliki `.pyartisan/manifest.yaml`, perintah gagal dengan pesan error dan kode keluar 1. Pesan untuk target tidak dikenal menyertakan daftar generator yang tersedia.
 
 ---
 
@@ -72,12 +95,18 @@ Jika target tidak dikenal atau project tidak memiliki `.pyartisan/manifest.yaml`
 ```bash
 pyartisan serve
 ```
-Menjalankan dev server. Strategi fallback: Docker (jika tersedia) → virtualenv lokal → peringatan jika keduanya tidak ada.
+Menjalankan dev server. Tanpa opsi; strategi dipilih otomatis, berurutan:
+
+1. **Docker**: jika ada `docker-compose.yml` dan Docker berjalan, menjalankan `docker compose up` (atau `docker-compose up`).
+2. **Venv project**: jika ada `./venv` atau `./.venv` (atau `VIRTUAL_ENV` yang menunjuk venv lain, bukan env tempat pyartisan berjalan) dan manifest punya `scripts.serve`, menjalankan script itu dengan venv tersebut. Folder `Scripts`/`bin` venv dipasang di depan `PATH`, `VIRTUAL_ENV` di-set, dan `python` / `python3` di awal script diganti dengan interpreter venv (di Windows tidak ada `python3` di dalam venv).
+3. **Error**: jika keduanya tidak ada, menampilkan petunjuk dan keluar dengan kode 1.
+
+Venv yang dicari adalah venv **project**, jadi `serve` tetap benar saat pyartisan dipasang lewat `uv tool` (env tool tidak pernah dipilih).
 
 ```bash
 pyartisan build
 ```
-Menjalankan build script produksi sesuai definisi di manifest project.
+Menjalankan `scripts.build` dari `.pyartisan/manifest.yaml`. Jika tidak didefinisikan, perintah gagal dengan kode keluar 1.
 
 ---
 
@@ -89,7 +118,9 @@ pyartisan config set <key> <value>
 pyartisan config reset
 ```
 
-Key yang tersedia secara default: `theme`, `author`, `license`, `default_framework`, `templates.flask`, `templates.fastapi`.
+Key yang tersedia secara default: `theme`, `author`, `license`, `default_framework`, `templates.flask`, `templates.fastapi`. `config set` menolak key yang tidak dikenal, kecuali berawalan `templates.` (framework baru boleh ditambahkan di sana). Perintah `pyartisan config` tanpa subcommand sama dengan `config show`.
+
+Saat ini hanya `templates.*` yang dibaca command lain (oleh `new`). Key `theme`, `author`, `license`, dan `default_framework` tersimpan tetapi belum dipakai.
 
 Contoh mengganti URL template:
 
@@ -104,9 +135,11 @@ Konfigurasi disimpan di `~/.pyartisan/config.toml`.
 ## 6. Doctor & Version
 
 ```bash
-pyartisan doctor    # Cek Python, pip, Git, virtualenv
+pyartisan doctor    # Cek Python, uv, pip, Git, virtualenv
 pyartisan version   # Cetak versi pyartisan
 ```
+
+Catatan `doctor`: Python minimal 3.10. `uv` opsional (tidak ada uv tidak menggagalkan doctor). `pip` tidak dianggap gagal jika tidak ada tetapi `uv` tersedia, karena env `uv tool` memang tanpa pip.
 
 ---
 
@@ -146,13 +179,13 @@ Meng-clone `https://github.com/<name>.git` ke `~/.pyartisan/plugins/<repo-name>/
 ```bash
 pyartisan plugin install myplugin --local /path/to/my-plugin
 ```
-Membuat symlink ke `~/.pyartisan/plugins/myplugin/dev/` — perubahan pada source lokal langsung terlihat tanpa install ulang. Cocok untuk mengembangkan plugin sebelum di-publish ke GitHub/marketplace.
+Membuat symlink ke `~/.pyartisan/plugins/myplugin/dev/` — perubahan pada source lokal langsung terlihat tanpa install ulang. Di Windows tanpa hak membuat symlink, otomatis dipakai junction (`mklink /J`). Cocok untuk mengembangkan plugin sebelum di-publish ke GitHub/marketplace.
 
 **c. Marketplace Premium (berbayar, verifikasi Blockchain)**
 ```bash
 pyartisan plugin install payment-midtrans --license valid-xxxxxx
 ```
-CLI memverifikasi kepemilikan lisensi ke Blockchain API node/smart contract sebelum mengunduh plugin premium secara aman.
+> **Masih tiruan (mock).** Verifikasi lisensi menerima kunci apa pun yang berawalan `valid-` tanpa memanggil Blockchain API, dan tidak ada plugin yang diunduh: yang ditulis ke registry hanya `manifest.yaml` kosong (versi `1.0.0`).
 
 > `install` **tidak** mengubah project mana pun — plugin baru sekadar tersedia di registry lokal.
 
@@ -164,7 +197,7 @@ pyartisan plugin apply <name>
 
 Dijalankan di dalam folder project (harus ada `.pyartisan/project.yaml`). Prosesnya:
 1. Menjalankan hook `before_install(project_context)` dari `hooks.py` plugin (jika ada).
-2. Menambahkan dependency pip plugin (`manifest.yaml` → `dependencies.pip`) ke `requirements.txt` project.
+2. Menambahkan dependency pip plugin (`manifest.yaml` → `dependencies.pip`) ke `requirements.txt` project, hanya jika file itu ada.
 3. Menjalankan hook `after_install(project_context)` — di sinilah plugin memanggil Project API (`create_service`, `register_router`, dll).
 4. Mencatat entri `<plugin-id>@<version>` ke `project.yaml` key `plugins`.
 5. Mencatat penggunaan (usage tracking) plugin+versi ini oleh path project saat ini di registry global — dasar validasi `uninstall`.
@@ -238,9 +271,9 @@ pyartisan plugin doctor
 Pemeriksaan lebih dalam dari `status`:
 - **Manifest** — `project.yaml` punya `framework.name`.
 - **Framework** — `ProjectContext` berhasil dibuat (deteksi framework valid).
-- **Template Metadata** — `template.yaml` template project ditemukan di registry global.
+- **Template Metadata** — `template.yaml` template project ditemukan di `~/.pyartisan/templates/<template>/<versi>/`. Belum ada command yang mengisi folder ini, jadi pemeriksaan ini gagal selama folder itu kosong (lihat [HOW_TO_CREATE_PLUGIN.md](HOW_TO_CREATE_PLUGIN.md)).
 - **Dependencies** — tiap plugin aktif dicek: dependency pip di `manifest.yaml` sudah ada di `requirements.txt` project.
-- **Marker** — marker registrasi router (mis. `# pyartisan:routers`) masih ada di file target sesuai `template.yaml`.
+- **Marker** — marker registrasi router (mis. `# pyartisan:routers`) masih ada di file target. Hanya diperiksa jika `template.yaml` mendefinisikannya.
 
 Diakhiri dengan `Plugin is valid` atau `Plugin has issues, see above.`
 
@@ -262,7 +295,7 @@ folder secara manual lagi. Prosesnya:
    `README.md`, `LICENSE`.
 4. Membuat folder `stubs/<framework>/` kosong untuk tiap framework yang
    dipilih di langkah 2.
-5. Langsung mendaftarkan plugin ke registry lokal sebagai symlink dev-mode
+5. Langsung mendaftarkan plugin ke registry lokal sebagai symlink (atau junction di Windows tanpa hak symlink) dev-mode
    (`~/.pyartisan/plugins/<name>/dev/`) — setara efeknya dengan
    `pyartisan plugin install <name> --local ./<name>`, jadi tidak perlu
    dijalankan terpisah.
@@ -274,7 +307,7 @@ project sandbox mana pun untuk mulai menguji hook yang sedang dikembangkan.
 
 ## 8. Membuat Plugin Sendiri
 
-Lihat [`Tutorial Create Plugin`](HOW_TO_CREATE_PLUGIN.md) untuk panduan lengkap struktur plugin (`manifest.yaml`, `hooks.py`, `stubs/`), penggunaan Project API (`project_context.framework`, `create_service`, `register_router`, dll), dan cara publikasi ke GitHub atau Marketplace.
+Lihat [Tutorial Plugin](HOW_TO_CREATE_PLUGIN.md) untuk struktur plugin (`manifest.yaml`, `hooks.py`, `stubs/`), Project API (`project.framework`, `create_service`, `register_router`, `add_dependency`), dan cara publikasi lewat GitHub. Rancangan produk ada di [PRD.md](PRD.md); cara berkontribusi ada di [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
