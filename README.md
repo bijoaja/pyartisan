@@ -1,28 +1,24 @@
 # PyArtisan
 
-PyArtisan is a multi-framework Python web development toolkit, inspired by
-Laravel Artisan. It provides a single CLI (`pyartisan`) that clones a
-framework template into a new project and then reads that project's
-`.pyartisan/manifest.yaml` to generate code — full support for Flask (via the
-[FlaskIQ](https://github.com/bijoaja/flaskiq) project conventions), with
-FastAPI (via [FastIQ](https://github.com/bijoaja/fastiq)) as a structural
-placeholder for a future release.
+> **Language:** English | [Indonesia](README.id.md)
+
+PyArtisan is a multi-framework Python web development CLI, inspired by Laravel Artisan. `pyartisan new` clones a framework template into a new project; later commands such as `make` read that project's `.pyartisan/manifest.yaml` to generate code. The core is framework-agnostic: framework knowledge lives in the template repos, [FlaskIQ](https://github.com/bijoaja/flaskiq) for Flask and [FastIQ](https://github.com/bijoaja/fastiq) for FastAPI.
 
 ## Features
 
-- Artisan-like CLI, framework-agnostic core driven by per-project manifest
-- Manifest-driven code generation (`make`) — no hardcoded generator per framework
-- Full 5-layer Flask scaffold: Routes → Controller → Service → Repository → Model
-- Auto install dependencies on project init
-- Docker-first `serve` with local-venv fallback
-- A package-manager-style plugin system (install/apply/remove, see [CLI.md](CLI.md#7-sistem-plugin))
-- Persistent config at `~/.pyartisan/config.toml`
-- `doctor` command to check your local dev environment
-- Python 3.10+ support
+- `new`: clone a framework template and set up the project (venv and dependencies, optional)
+- `make`: generate code from the generators declared in the project's manifest, with no hardcoded generator per framework
+- `serve`: Docker first, then the project's venv
+- `build`: run the build script from the manifest
+- `plugin`: package-manager-style plugins (`install`, `apply`, `remove`, ...), see [docs/en/CLI.md](docs/en/CLI.md#7-plugin-system)
+- `config`: persistent settings in `~/.pyartisan/config.toml`
+- `doctor`: check your local environment
+- Works with [uv](https://docs.astral.sh/uv/) (isolated install, no venv needed); pip also works
+- Python 3.10+
 
 ## Installation
 
-Recommended — with [uv](https://docs.astral.sh/uv/) (isolated; no venv, system Python untouched):
+Recommended, with [uv](https://docs.astral.sh/uv/). It installs into an isolated environment, so you do not need to create a venv and your system Python is untouched:
 
 ```bash
 uv tool install git+https://github.com/bijoaja/pyartisan
@@ -35,74 +31,55 @@ From source:
 ```bash
 git clone https://github.com/bijoaja/pyartisan.git
 cd pyartisan
-uv tool install .          # or: pip install -e .
+uv tool install .      # or: uv tool install --editable .   (for contributors)
+# without uv: pip install -e .
 ```
 
-When `uv` is on `PATH`, `pyartisan new` also creates the project venv and installs dependencies with uv (falls back to venv + pip otherwise).
+If `pyartisan` is not found afterwards, run `uv tool update-shell` and open a new terminal.
+
+When `uv` is on `PATH`, `pyartisan new` also creates the project venv and installs dependencies with uv. Otherwise it falls back to `python -m venv` and pip.
 
 ## Requirements
 
-- Python ≥ 3.10
-- Flask
-- SQLAlchemy
-- Click
+- Python ≥ 3.10 (uv can download it for you)
+- Git (`pyartisan new` and GitHub plugin installs use `git clone`)
+- Runtime dependencies are declared in `pyproject.toml`: `click`, `flask`, `sqlalchemy`, `jinja2`, `pyyaml`, and `tomli` on Python < 3.11. `flask` and `sqlalchemy` are not imported by PyArtisan's own code.
 
 ## Usage
-
-PyArtisan registers the `pyartisan` command. Run anywhere inside your project.
 
 ```bash
 pyartisan --help
 ```
 
-### Initialize a new project
+### Create a new project
 
 ```bash
 pyartisan new flask myapp
 pyartisan new fastapi myapi
 ```
 
-Clones the framework template (FlaskIQ for `flask`, FastIQ for `fastapi`, see
-`pyartisan config show` for the URLs) and optionally sets up a virtual
-environment plus `requirements.txt` install. Template URLs can be overridden
-with `pyartisan config set templates.<framework> <url>`.
+Runs `git clone` of the template (FlaskIQ for `flask`, FastIQ for `fastapi`; see `pyartisan config show` for the URLs), writes `.pyartisan/project.yaml`, then asks whether to create `./venv` and install `requirements.txt`. Template URLs can be changed with `pyartisan config set templates.<framework> <url>`.
 
-### Framework detection
+### How the framework is known
 
-There is no filesystem-based auto-detection. The framework is recorded once,
-at `pyartisan new` time, in `.pyartisan/project.yaml` (and template metadata
-in `.pyartisan/manifest.yaml`). Commands like `make` and `serve` read that
-manifest — always run them from inside a project created by `pyartisan new`.
+There is no auto-detection from files. The framework is recorded once, by `pyartisan new`, in `.pyartisan/project.yaml`. `make` and `serve` read `.pyartisan/manifest.yaml`, so run them from inside a project created by `pyartisan new`.
 
-### Scaffold code (`make`)
+### Generate code (`make`)
 
 ```bash
 pyartisan make <target> <name> [--force] [--<option> <value> ...]
 ```
 
-`make` reads `.pyartisan/manifest.yaml` inside the project to know which
-generators exist (`model`, `controller`, `service`, `repository`, etc. —
-depends on the template). Extra `--option value` pairs are passed straight
-into the Jinja2 render context (e.g. `--type`, `--version`).
+`<target>` must be a generator declared in the project's `.pyartisan/manifest.yaml`. For FlaskIQ these are `controller`, `service`, `repository`, `model` and `routes`; FastIQ declares `module` and `model`. Extra `--option value` pairs go straight into the Jinja2 render context (defaults: `type` = `view`, `version` = `1`).
 
 ```bash
-# Controller (route + controller + service for the feature)
-pyartisan make controller Post --type view
-pyartisan make controller Post --type api
-pyartisan make controller Post --type api --version 2
-
-# Standalone service
-pyartisan make service Post --type view
-
-# Model — generates a model file and updates app/model/__init__.py
 pyartisan make model Post
-
-# Repository — generates a data-access class and updates app/repository/__init__.py
 pyartisan make repository Post
+pyartisan make service Post --type view
+pyartisan make controller Post --type api --version 2
 ```
 
-Unknown targets, or running outside a project with `.pyartisan/manifest.yaml`,
-fail with a clear error.
+An unknown target, or running outside a project that has `.pyartisan/manifest.yaml`, fails with an error and exit code 1.
 
 ### Run the dev server
 
@@ -110,140 +87,91 @@ fail with a clear error.
 pyartisan serve
 ```
 
-No flags — `serve` auto-detects the strategy: uses Docker (`docker compose up`)
-if `docker-compose.yml` exists and Docker is running, otherwise falls back to
-the `scripts.serve` command from `.pyartisan/manifest.yaml` inside an active
-virtualenv, otherwise prints instructions to fix your setup.
+No flags. `serve` picks a strategy automatically:
 
-### Build production Docker image
+1. Docker (`docker compose up`) if `docker-compose.yml` exists and Docker is running.
+2. Otherwise, the `scripts.serve` command from the manifest, run inside the project's own venv (`./venv` or `./.venv`). This also works when PyArtisan itself was installed with `uv tool`.
+3. Otherwise, an error with instructions (exit code 1).
+
+### Build
 
 ```bash
 pyartisan build
 ```
 
+Runs `scripts.build` from `.pyartisan/manifest.yaml`. Fails with exit code 1 if the manifest defines no build script.
+
 ### Configuration
 
 ```bash
-pyartisan config          # same as config show
+pyartisan config          # same as: config show
 pyartisan config show
-pyartisan config set default_framework fastapi
+pyartisan config set templates.flask https://github.com/you/your-flaskiq-fork.git
 pyartisan config reset
 ```
 
-### Doctor
-
-Checks Python, pip, Git, and virtual environment health:
+### Doctor and version
 
 ```bash
-pyartisan doctor
-```
-
-### Version
-
-```bash
+pyartisan doctor     # Python, uv, pip, Git, virtual environment
 pyartisan version
 ```
 
-## Generated Project Structure
+### Plugins
 
-Running PyArtisan's Flask commands inside a FlaskIQ project produces:
-
-```
-project_name/
-├── app/
-│   ├── __init__.py
-│   ├── routes/
-│   │   ├── post.py               # Blueprint per feature (make controller --type view)
-│   │   └── api/
-│   │       └── v1/
-│   │           └── __init__.py   # API resource registrations (make controller --type api)
-│   ├── controller/
-│   │   ├── view/
-│   │   │   └── post/
-│   │   │       ├── __init__.py
-│   │   │       └── post_controller.py
-│   │   └── api/
-│   │       └── v1/
-│   │           └── post/
-│   │               ├── __init__.py
-│   │               └── post_controller.py
-│   ├── service/
-│   │   ├── __init__.py
-│   │   ├── post_service.py
-│   │   └── api/
-│   │       └── v1/
-│   │           ├── __init__.py
-│   │           └── post_service.py
-│   ├── repository/
-│   │   ├── __init__.py
-│   │   └── post_repository.py    # make repository Post
-│   ├── model/
-│   │   ├── __init__.py
-│   │   └── post.py               # make model Post
-│   ├── templates/
-│   └── static/
-├── utils/
-│   ├── response.py
-│   └── middleware.py
-├── Docker/
-│   ├── Dockerfile                # Production
-│   └── Dockerfile.dev            # Development
-├── docker-compose.yml
-├── server.py
-├── requirements.txt
-├── .env.example
-├── Makefile
-└── README.md
+```bash
+pyartisan plugin init my-plugin               # scaffold a plugin and link it for development
+pyartisan plugin install user/repo            # clone from GitHub into ~/.pyartisan/plugins
+pyartisan plugin apply my-plugin              # apply it to the current project
+pyartisan plugin list --global
 ```
 
-## Architecture
+See [docs/en/CLI.md](docs/en/CLI.md#7-plugin-system) for every plugin command and [docs/en/HOW_TO_CREATE_PLUGIN.md](docs/en/HOW_TO_CREATE_PLUGIN.md) to write one.
 
-PyArtisan is a single package (`src/pyartisan/`) — a framework-agnostic
-engine whose thin `cli/` parser dispatches, via `core/engine.py`, to
-generators driven by each project's own `.pyartisan/manifest.yaml`. There is
-no hardcoded Flask/FastAPI code in the core; framework support lives in the
-FlaskIQ/FastIQ template repos themselves. A separate community/marketplace
-plugin system exists on top of this (installed under `~/.pyartisan/plugins/`
-and applied to a project via `pyartisan plugin apply`) — see
-[CLI.md](CLI.md#7-sistem-plugin) and [HOW_TO_CREATE_PLUGIN.md](HOW_TO_CREATE_PLUGIN.md).
-See `CLAUDE.md` for the full directory breakdown.
+## Project structure
 
-Generated Flask code follows the FlaskIQ 5-layer architecture:
+The folder layout of a generated project comes from its template, not from PyArtisan. Look at the template repo ([FlaskIQ](https://github.com/bijoaja/flaskiq), [FastIQ](https://github.com/bijoaja/fastiq)) for the current layout.
 
-```
-HTTP Request → Routes → Controller → Service → Repository → Model
-```
+PyArtisan itself is one package, `src/pyartisan/`:
 
-| Layer | Directory | Responsibility |
-|-------|-----------|----------------|
-| Routes | `app/routes/` | Map URLs to controllers via Blueprint |
-| Controller | `app/controller/` | Parse request, validate input, call one service method |
-| Service | `app/service/` | All business logic, raise `ValueError` for domain errors |
-| Repository | `app/repository/` | Exclusive `db.session` access, return ORM instances |
-| Model | `app/model/` | SQLAlchemy ORM definitions + `to_dict()` |
+| Folder | Role |
+|---|---|
+| `cli/commands/` | one file per command, parses arguments only |
+| `core/` | `engine.py` (dispatch), manifest loading, registration, `ProjectContext` for plugin hooks |
+| `marketplace/` | global plugin registry in `~/.pyartisan/plugins` |
+| `renderer/`, `config/`, `shared/`, `utils/` | Jinja2 rendering, `config.toml`, doctor logic, helpers |
+| `templates/plugin_init/` | skeleton used by `plugin init` |
 
-## Configuration
+## Configuration file
 
-`pyartisan` is registered as a script entry point:
-
-```
-pyartisan = "pyartisan.cli:cli"
-```
-
-Persistent user config lives at `~/.pyartisan/config.toml`:
+`~/.pyartisan/config.toml` is created on first use:
 
 ```toml
 theme = "default"
 author = ""
 license = "MIT"
 default_framework = "flask"
+
+[templates]
+flask = "https://github.com/bijoaja/flaskiq.git"
+fastapi = "https://github.com/bijoaja/fastiq.git"
 ```
+
+Only `templates.*` is read by a command today (`new`); the other keys are stored but not used yet.
+
+## Documentation
+
+| Document | English | Indonesia |
+|---|---|---|
+| CLI reference | [docs/en/CLI.md](docs/en/CLI.md) | [docs/id/CLI.md](docs/id/CLI.md) |
+| Writing a plugin | [docs/en/HOW_TO_CREATE_PLUGIN.md](docs/en/HOW_TO_CREATE_PLUGIN.md) | [docs/id/HOW_TO_CREATE_PLUGIN.md](docs/id/HOW_TO_CREATE_PLUGIN.md) |
+| Product requirements and status | [docs/en/PRD.md](docs/en/PRD.md) | [docs/id/PRD.md](docs/id/PRD.md) |
+| Contributor guide | [docs/en/CONTRIBUTING.md](docs/en/CONTRIBUTING.md) | [docs/id/CONTRIBUTING.md](docs/id/CONTRIBUTING.md) |
 
 ## Contributing
 
-Contributions are welcome!
-Feel free to submit issues, feature requests, or pull requests.
+Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-This project is licensed under the MIT License.
+MIT, see [LICENSE](LICENSE).
