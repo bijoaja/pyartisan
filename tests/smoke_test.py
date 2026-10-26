@@ -796,7 +796,45 @@ def test_force_utf8():
     print("OK  force_utf8")
 
 
+def test_serve_project_venv():
+    import sys
+    import pyartisan.core.engine as engine
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cwd = Path(tmp)
+        assert engine._find_project_venv(cwd) is None  # no venv in project
+
+        venv = cwd / ".venv"
+        py = engine._venv_python(venv)
+        py.parent.mkdir(parents=True)
+        py.write_text("")
+        assert engine._find_project_venv(cwd) is None  # no pyvenv.cfg: not a venv
+        (venv / "pyvenv.cfg").write_text("")
+        assert engine._find_project_venv(cwd) == venv
+
+        # the env pyartisan itself runs in must never be picked up
+        orig_prefix, orig_ve = sys.prefix, os.environ.pop("VIRTUAL_ENV", None)
+        try:
+            sys.prefix = str(venv)
+            assert engine._find_project_venv(cwd) is None
+            os.environ["VIRTUAL_ENV"] = str(venv)  # VIRTUAL_ENV == own prefix: still skipped
+            assert engine._find_project_venv(cwd) is None
+        finally:
+            sys.prefix = orig_prefix
+            os.environ.pop("VIRTUAL_ENV", None)
+            if orig_ve is not None:
+                os.environ["VIRTUAL_ENV"] = orig_ve
+
+        argv, env = engine._venv_command(venv, ["python3", "server.py"])
+        assert argv == [str(py), "server.py"]  # python3 mapped to venv python
+        assert env["VIRTUAL_ENV"] == str(venv)
+        assert env["PATH"].startswith(str(engine._venv_bin(venv)))
+        assert engine._venv_command(venv, ["no-such-tool", "x"])[0] == ["no-such-tool", "x"]
+    print("OK  serve_project_venv")
+
+
 def main():
+    test_serve_project_venv()
     test_force_utf8()
     test_uv_support()
     test_name_parts()
