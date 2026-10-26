@@ -230,6 +230,39 @@ def _docker_available() -> bool:
         return False
 
 
+def _venv_bin(venv: Path) -> Path:
+    return venv / ("Scripts" if os.name == "nt" else "bin")
+
+
+def _venv_python(venv: Path) -> Path:
+    return _venv_bin(venv) / ("python.exe" if os.name == "nt" else "python")
+
+
+def _find_project_venv(cwd: Path) -> Path | None:
+    """Venv of the project, never the env pyartisan itself runs in (e.g. a `uv tool` env)."""
+    own = Path(sys.prefix).resolve()
+    candidates = [cwd / "venv", cwd / ".venv"]
+    if os.environ.get("VIRTUAL_ENV"):
+        candidates.append(Path(os.environ["VIRTUAL_ENV"]))
+    for c in candidates:
+        if (c / "pyvenv.cfg").exists() and _venv_python(c).exists() and c.resolve() != own:
+            return c
+    return None
+
+
+def _venv_command(venv: Path, argv: list[str]) -> tuple[list[str], dict]:
+    """Run argv inside venv. PATH alone is not trusted: on Windows `python3` does not exist in a
+    venv and a PATH entry does not override the caller's own Python, so resolve argv[0] explicitly."""
+    bin_dir = str(_venv_bin(venv))
+    env = {**os.environ, "VIRTUAL_ENV": str(venv), "PATH": bin_dir + os.pathsep + os.environ.get("PATH", "")}
+    env.pop("PYTHONHOME", None)
+    if argv[0] in ("python", "python3"):
+        argv = [str(_venv_python(venv)), *argv[1:]]
+    else:
+        argv = [shutil.which(argv[0], path=env["PATH"]) or argv[0], *argv[1:]]
+    return argv, env
+
+
 def dispatch_serve() -> None:
     """Run dev server using the fallback docker -> venv -> warning strategy."""
     cwd = Path.cwd()
@@ -250,13 +283,14 @@ def dispatch_serve() -> None:
         return
 
     # 2. Cek venv + script serve
-    is_venv = sys.prefix != sys.base_prefix or os.environ.get("VIRTUAL_ENV") is not None
+    venv = _find_project_venv(cwd)
     serve_script = manifest.get("scripts", {}).get("serve")
 
-    if is_venv and serve_script:
-        click.echo("Starting dev server locally ...")
+    if venv and serve_script:
+        click.echo(f"Starting dev server locally (venv: {venv.name}) ...")
         try:
-            subprocess.run(shlex.split(serve_script))
+            argv, env = _venv_command(venv, shlex.split(serve_script))
+            subprocess.run(argv, env=env)
         except KeyboardInterrupt:
             click.echo("\nServer stopped.")
         except Exception as e:
@@ -265,13 +299,11 @@ def dispatch_serve() -> None:
         return
 
     # 3. Fallback warning
-    click.echo("Error: No docker-compose.yml active and no active virtual environment.")
+    click.echo("Error: No docker-compose.yml active and no project virtual environment found.")
     click.echo("  To resolve:")
     click.echo("    - Make sure Docker is running and run `pyartisan make docker` if needed.")
     if serve_script:
-        click.echo("    - Activate your virtual environment first:")
-        click.echo("        Mac/Linux: source venv/bin/activate")
-        click.echo("        Windows:   venv\\Scripts\\activate")
+        click.echo("    - Create the project venv (./venv or ./.venv), e.g. `uv venv venv` and install requirements.")
     sys.exit(1)
 
 
