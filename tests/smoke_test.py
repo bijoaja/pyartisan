@@ -81,6 +81,24 @@ def test_render_stub():
     print("OK  render_stub")
 
 
+def test_render_stub_nested():
+    """Stubs in sub-folders must render on every OS (Jinja needs '/' in template names)."""
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        stub_dir = root / "stubs"
+        nested = stub_dir / "{{name_lower}}"
+        nested.mkdir(parents=True)
+        (nested / "{{name_lower}}_controller.py.jinja").write_text("class {{name_title}}Controller: pass\n")
+        (stub_dir / "flat.py.jinja").write_text("x = '{{name_lower}}'\n")
+
+        dest_dir = root / "app"
+        rendered = render_stub(stub_dir, dest_dir, {"name_lower": "post", "name_title": "Post"})
+        assert len(rendered) == 2
+        assert (dest_dir / "post" / "post_controller.py").read_text() == "class PostController: pass\n"
+        assert (dest_dir / "flat.py").read_text() == "x = 'post'\n"
+    print("OK  render_stub_nested")
+
+
 def test_registration_import_list():
     with tempfile.TemporaryDirectory() as d:
         root = Path(d)
@@ -840,6 +858,7 @@ def main():
     test_name_parts()
     test_manifest_load()
     test_render_stub()
+    test_render_stub_nested()
     test_registration_import_list()
     test_registration_marker()
     test_config_roundtrip()
