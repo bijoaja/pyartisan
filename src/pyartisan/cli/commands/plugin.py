@@ -22,6 +22,30 @@ from pyartisan.marketplace.core import (
 )
 
 
+def _is_link(path: Path) -> bool:
+    """True for a symlink, or a Windows junction (reparse point)."""
+    if path.is_symlink():
+        return True
+    try:
+        return bool(getattr(path.lstat(), "st_file_attributes", 0) & 0x400)  # FILE_ATTRIBUTE_REPARSE_POINT
+    except OSError:
+        return False
+
+
+def _remove_link(path: Path) -> None:
+    os.unlink(path) if path.is_symlink() else os.rmdir(path)  # rmdir drops a junction, not its target
+
+
+def _link_dir(target: Path, link: Path) -> None:
+    """Dev link to `target`. Windows without symlink privilege (WinError 1314): use a junction."""
+    try:
+        os.symlink(target, link, target_is_directory=True)
+    except OSError:
+        if os.name != "nt":
+            raise
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)], check=True, capture_output=True)
+
+
 @click.group(name="plugin")
 def plugin_group():
     """Manage PyArtisan plugins (community & marketplace)"""
@@ -64,12 +88,12 @@ def init_cmd(name: str):
     plugins_registry = _plugins_registry()
     plugin_dir = plugins_registry / name / "dev"
     plugin_dir.parent.mkdir(parents=True, exist_ok=True)
-    if plugin_dir.exists() or plugin_dir.is_symlink():
-        if plugin_dir.is_symlink():
-            os.unlink(plugin_dir)
+    if plugin_dir.exists() or _is_link(plugin_dir):
+        if _is_link(plugin_dir):
+            _remove_link(plugin_dir)
         else:
             shutil.rmtree(plugin_dir)
-    os.symlink(dest.resolve(), plugin_dir, target_is_directory=True)
+    _link_dir(dest.resolve(), plugin_dir)
 
     click.echo(f"✔ Plugin skeleton created at {dest}")
     click.echo(f"✔ Linked to registry -> ~/.pyartisan/plugins/{name}/dev")
@@ -96,14 +120,14 @@ def install_cmd(name: str, local: str, license: str):
 
         plugin_dir = plugins_registry / name / "dev"
         plugin_dir.parent.mkdir(parents=True, exist_ok=True)
-        if plugin_dir.exists() or plugin_dir.is_symlink():
-            if plugin_dir.is_symlink():
-                os.unlink(plugin_dir)
+        if plugin_dir.exists() or _is_link(plugin_dir):
+            if _is_link(plugin_dir):
+                _remove_link(plugin_dir)
             else:
                 shutil.rmtree(plugin_dir)
 
-        # Gunakan symlink untuk mode pengembangan
-        os.symlink(local_path.resolve(), plugin_dir, target_is_directory=True)
+        # Gunakan symlink (atau junction di Windows) untuk mode pengembangan
+        _link_dir(local_path.resolve(), plugin_dir)
         click.echo(f"✔ Linked local plugin {name} -> {local_path}")
     elif license:
         click.echo("🔗 Verifying license credentials on Blockchain API node...")

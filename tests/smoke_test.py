@@ -691,7 +691,8 @@ def test_cli_plugin_init_all_frameworks():
             assert manifest["version"] == "1.0.0"
 
             registry_link = home_dir / ".pyartisan" / "plugins" / "crud-blogs" / "dev"
-            assert registry_link.is_symlink()
+            from pyartisan.cli.commands.plugin import _is_link
+            assert _is_link(registry_link)  # symlink, or junction on Windows without privilege
             assert registry_link.resolve() == plugin_dir.resolve()
         finally:
             os.path.expanduser = orig_expanduser
