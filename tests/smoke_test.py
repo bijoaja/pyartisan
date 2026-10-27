@@ -792,6 +792,25 @@ def test_uv_support():
     assert engine._venv_cmd(None)[1:] == ["-m", "venv", "venv"]
     assert engine._install_cmd("/x/uv", "py", "r.txt") == ["/x/uv", "pip", "install", "--python", "py", "-r", "r.txt"]
     assert engine._install_cmd(None, "py", "r.txt") == ["py", "-m", "pip", "install", "-r", "r.txt"]
+
+    # install plan detection (pyproject vs requirements vs none)
+    with tempfile.TemporaryDirectory() as td:
+        tdp = Path(td)
+        assert engine._detect_install_plan(tdp, "/x/uv", "py") is None
+
+        (tdp / "requirements.txt").write_text("flask\n")
+        desc, cmd = engine._detect_install_plan(tdp, "/x/uv", "py")
+        assert "requirements.txt" in desc
+        assert cmd == ["/x/uv", "pip", "install", "--python", "py", "-r", "requirements.txt"]
+
+        (tdp / "pyproject.toml").write_text("[project]\nname='test'\n")
+        desc, cmd = engine._detect_install_plan(tdp, "/x/uv", "py")
+        assert "uv sync" in desc
+        assert cmd == ["/x/uv", "sync"]
+
+        desc_no_uv, cmd_no_uv = engine._detect_install_plan(tdp, None, "py")
+        assert "pyproject.toml" in desc_no_uv
+        assert cmd_no_uv == ["py", "-m", "pip", "install", "-e", "."]
     print("OK  uv_support")
 
 
