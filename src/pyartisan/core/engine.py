@@ -25,6 +25,22 @@ def _install_cmd(uv: str | None, venv_python: str, req_file: str) -> list[str]:
     return [venv_python, "-m", "pip", "install", "-r", req_file]
 
 
+def _detect_install_plan(cwd: Path, uv: str | None, venv_python: str) -> tuple[str, list[str]] | None:
+    """Return (description, command) for installing project dependencies, or None."""
+    pyproject = cwd / "pyproject.toml"
+    req_file = cwd / "requirements.txt"
+
+    if pyproject.exists():
+        if uv:
+            return "dependencies via uv sync", [uv, "sync"]
+        return "project dependencies via pip (pyproject.toml)", [venv_python, "-m", "pip", "install", "-e", "."]
+
+    if req_file.exists():
+        return "dependencies from requirements.txt", _install_cmd(uv, venv_python, str(req_file.name))
+
+    return None
+
+
 def dispatch_new(framework: str, project_name: str) -> None:
     """Initialize a new project by cloning the framework template."""
     config_data = config_module.load()
@@ -106,14 +122,15 @@ def dispatch_new(framework: str, project_name: str) -> None:
         sys.exit(1)
 
     venv_python = "venv\\Scripts\\python.exe" if os.name == "nt" else "venv/bin/python"
-    req_file = "requirements.txt"
-    if not os.path.exists(req_file):
-        click.echo("⚠ requirements.txt not found, skipping dependency installation.")
+    plan = _detect_install_plan(Path.cwd(), uv, venv_python)
+    if not plan:
+        click.echo("⚠ No pyproject.toml or requirements.txt found, skipping dependency installation.")
         return
 
-    click.echo("📦 Installing dependencies from requirements.txt ...")
+    desc, cmd = plan
+    click.echo(f"📦 Installing {desc} ...")
     try:
-        subprocess.run(_install_cmd(uv, venv_python, req_file), check=True)
+        subprocess.run(cmd, check=True)
         click.echo("✔ Dependencies installed successfully.")
     except Exception as e:
         click.echo(f"❌ Failed to install dependencies: {e}")
