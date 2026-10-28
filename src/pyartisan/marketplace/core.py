@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import types
 from pathlib import Path
 
 import click
@@ -62,7 +63,7 @@ def _all_usages(plugins_registry: Path, plugin_id: str) -> list:
     return result
 
 
-def _load_hooks(plugin_dir: Path):
+def _load_hooks(plugin_dir: Path) -> types.ModuleType | None:
     hooks_file = plugin_dir / "hooks.py"
     if not hooks_file.exists():
         return None
@@ -127,7 +128,7 @@ def _latest_version(versions: list) -> str:
     return sorted(numeric, key=_version_key)[-1]
 
 
-def _check_updates():
+def _check_updates() -> None:
     plugins_registry = _plugins_registry()
     found_any = False
 

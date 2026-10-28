@@ -9,14 +9,14 @@ from pyartisan.utils.safe import validate_clone_url, validate_name
 
 @click.group(name="config", invoke_without_command=True)
 @click.pass_context
-def config_group(ctx):
+def config_group(ctx: click.Context) -> None:
     """Manage ~/.pyartisan/config.toml"""
     if ctx.invoked_subcommand is None:
         ctx.invoke(config_show)
 
 
 @config_group.command(name="show")
-def config_show():
+def config_show() -> None:
     """Print current configuration."""
     data = config_module.load()
     for key, value in data.items():
@@ -24,7 +24,7 @@ def config_show():
 
 
 @config_group.command(name="reset")
-def config_reset():
+def config_reset() -> None:
     """Reset configuration to defaults."""
     config_module.reset()
     click.echo("✔ Configuration reset to defaults.")
@@ -33,7 +33,7 @@ def config_reset():
 @config_group.command(name="set")
 @click.argument("key")
 @click.argument("value")
-def config_set(key: str, value: str):
+def config_set(key: str, value: str) -> None:
     """Set a config key, e.g. pyartisan config set templates.flask <url>"""
     data = config_module.load()
 

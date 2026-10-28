@@ -1,4 +1,5 @@
 import sys
+from typing import Any
 
 import click
 
@@ -13,9 +14,9 @@ from pyartisan.core.exceptions import PyArtisanError
 @click.argument("name")
 @click.option("--force", is_flag=True, default=False, help="Overwrite existing files")
 @click.pass_context
-def make_cmd(ctx, target: str, name: str, force: bool) -> None:
+def make_cmd(ctx: click.Context, target: str, name: str, force: bool) -> None:
     """Scaffold files from template stubs (e.g. make controller Post)."""
-    extra_options = {}
+    extra_options: dict[str, Any] = {}
     it = iter(ctx.args)
     for item in it:
         if item.startswith("--"):

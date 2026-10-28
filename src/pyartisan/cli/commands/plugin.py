@@ -91,14 +91,14 @@ def _link_dir(target: Path, link: Path) -> None:
 
 
 @click.group(name="plugin")
-def plugin_group():
+def plugin_group() -> None:
     """Manage PyArtisan plugins (community & marketplace)"""
     pass
 
 
 @plugin_group.command(name="init")
 @click.argument("name")
-def init_cmd(name: str):
+def init_cmd(name: str) -> None:
     """Scaffold a new plugin skeleton, ready for development."""
     _valid(name, "plugin id")
     dest = Path.cwd() / name
@@ -149,7 +149,7 @@ def init_cmd(name: str):
 @click.argument("name")
 @click.option("--local", type=str, help="Install plugin from local directory path")
 @click.option("--license", type=str, help="License key for premium marketplace plugins")
-def install_cmd(name: str, local: str, license: str):
+def install_cmd(name: str, local: str | None, license: str | None) -> None:
     """Download plugin into the global registry (does not affect any project)."""
     plugins_registry = _plugins_registry()
     plugin_dir = None
@@ -244,7 +244,7 @@ def install_cmd(name: str, local: str, license: str):
     default=False,
     help="Automatically approve plugin hooks without prompting",
 )
-def apply_cmd(name: str, yes: bool):
+def apply_cmd(name: str, yes: bool) -> None:
     """Apply a registry-installed plugin to the current project."""
     _valid(name, "plugin id")
     cwd = Path.cwd()
@@ -325,7 +325,7 @@ def apply_cmd(name: str, yes: bool):
     default=False,
     help="Automatically approve plugin hooks without prompting",
 )
-def update_cmd(name: str, yes: bool):
+def update_cmd(name: str, yes: bool) -> None:
     """Update a registry plugin's git sources and re-apply if used by current project."""
     _valid(name, "plugin id")
     plugins_registry = _plugins_registry()
@@ -387,7 +387,7 @@ def update_cmd(name: str, yes: bool):
     default=False,
     help="Automatically approve plugin hooks without prompting",
 )
-def remove_cmd(names, remove_all, yes: bool):
+def remove_cmd(names: tuple[str, ...], remove_all: bool, yes: bool) -> None:
     """Remove plugin(s) from the current project (registry copy stays intact)."""
     cwd = Path.cwd()
     project_yaml_file = cwd / ".pyartisan" / "project.yaml"
@@ -452,7 +452,7 @@ def remove_cmd(names, remove_all, yes: bool):
 @click.option(
     "--all", "uninstall_all", is_flag=True, help="Uninstall all plugins from the registry"
 )
-def uninstall_cmd(names, uninstall_all):
+def uninstall_cmd(names: tuple[str, ...], uninstall_all: bool) -> None:
     """Delete plugin(s) from the global registry, if unused by any project."""
     plugins_registry = _plugins_registry()
 
@@ -509,7 +509,7 @@ def uninstall_cmd(names, uninstall_all):
     is_flag=True,
     help="Check for available updates on git-based registry plugins",
 )
-def list_cmd(show_global, show_updates):
+def list_cmd(show_global: bool, show_updates: bool) -> None:
     """List plugins (project-scoped by default, --global for the registry, --updates to check versions)."""
     if show_updates:
         _check_updates()
@@ -548,7 +548,7 @@ def list_cmd(show_global, show_updates):
 
 @plugin_group.command(name="info")
 @click.argument("name")
-def info_cmd(name: str):
+def info_cmd(name: str) -> None:
     """Show detailed metadata for a plugin in the global registry."""
     _valid(name, "plugin id")
     plugins_registry = _plugins_registry()
@@ -582,7 +582,7 @@ def info_cmd(name: str):
 
 
 @plugin_group.command(name="status")
-def status_cmd():
+def status_cmd() -> None:
     """Show plugin health status for the current project."""
     cwd = Path.cwd()
     project_yaml_file = cwd / ".pyartisan" / "project.yaml"
@@ -618,7 +618,7 @@ def status_cmd():
 
 
 @plugin_group.command(name="doctor")
-def doctor_cmd():
+def doctor_cmd() -> None:
     """Diagnose plugin setup issues for the current project."""
     cwd = Path.cwd()
     project_yaml_file = cwd / ".pyartisan" / "project.yaml"
