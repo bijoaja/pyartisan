@@ -3,6 +3,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
+from pyartisan.core.exceptions import PyArtisanError
 from pyartisan.utils.fs import write_file
 
 
@@ -11,30 +12,35 @@ def render_stub(stub_dir: Path, dest_dir: Path, context: dict, force: bool = Fal
     if not stub_dir.exists():
         raise FileNotFoundError(f"Stub directory not found: {stub_dir}")
 
-    rendered_files = []
-    # Setup Jinja environment
     env = Environment(loader=FileSystemLoader(str(stub_dir)), keep_trailing_newline=True)
 
-    # Render file names and contents
+    # First pass: render file paths and validate containment
+    planned = []
+    dest_dir_resolved = dest_dir.resolve()
     for root, _, files in os.walk(stub_dir):
         for file in files:
-            # File name rendering (e.g. {{name_lower}}_controller.py.jinja -> users_controller.py)
             rel_path = Path(root).relative_to(stub_dir) / file
             rendered_rel_path_str = env.from_string(str(rel_path)).render(context)
 
-            # Remove .jinja suffix if present
             if rendered_rel_path_str.endswith(".jinja"):
                 rendered_rel_path_str = rendered_rel_path_str[:-6]
 
             dest_file_path = dest_dir / rendered_rel_path_str
+            resolved_dest = dest_file_path.resolve()
+            if (
+                not resolved_dest.is_relative_to(dest_dir_resolved)
+                or resolved_dest == dest_dir_resolved
+            ):
+                raise PyArtisanError(f"Rendered path escapes destination: {dest_file_path}")
 
-            # Content rendering
-            template = env.get_template(
-                rel_path.as_posix()
-            )  # Jinja only accepts '/' (str() gives '\' on Windows)
-            content = template.render(context)
+            planned.append((dest_file_path, rel_path))
 
-            write_file(str(dest_file_path), content, overwrite=force)
-            rendered_files.append(dest_file_path)
+    # Second pass: render content and write files
+    rendered_files = []
+    for dest_file_path, rel_path in planned:
+        template = env.get_template(rel_path.as_posix())
+        content = template.render(context)
+        write_file(str(dest_file_path), content, overwrite=force)
+        rendered_files.append(dest_file_path)
 
     return rendered_files

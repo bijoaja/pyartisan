@@ -14,6 +14,7 @@ from pyartisan.core.manifest import load_manifest
 from pyartisan.core.registration import apply_registration
 from pyartisan.renderer import render_stub
 from pyartisan.utils.naming import name_parts
+from pyartisan.utils.safe import safe_child, validate_name
 
 
 def _venv_cmd(uv: str | None) -> list[str]:
@@ -55,6 +56,7 @@ def _detect_install_plan(
 
 def dispatch_new(framework: str, project_name: str) -> None:
     """Initialize a new project by cloning the framework template."""
+    validate_name(project_name, "project name")
     config_data = config_module.load()
     templates = config_data.get(
         "templates",
@@ -158,6 +160,7 @@ def dispatch_new(framework: str, project_name: str) -> None:
 
 def dispatch_make(target: str, name: str, force: bool = False, **extra_options) -> None:
     """Process file generation using manifest.yaml configuration."""
+    validate_name(name, "name")
     cwd = Path.cwd()
     manifest = load_manifest(cwd)
 
@@ -176,7 +179,7 @@ def dispatch_make(target: str, name: str, force: bool = False, **extra_options) 
             f"Generator '{target}' configuration must specify 'stub' and 'path' keys."
         )
 
-    stub_dir = cwd / ".pyartisan" / stub_rel
+    stub_dir = safe_child(cwd, ".pyartisan", stub_rel)
 
     dest_path_rel = manifest.get("paths", {}).get(path_key)
     if not dest_path_rel:
@@ -184,7 +187,7 @@ def dispatch_make(target: str, name: str, force: bool = False, **extra_options) 
             f"Path key '{path_key}' (used by '{target}') is not defined in manifest 'paths'."
         )
 
-    dest_dir = cwd / dest_path_rel
+    dest_dir = safe_child(cwd, dest_path_rel)
 
     # Render context
     name_lower, name_title, name_snake, name_plural = name_parts(name)
@@ -205,7 +208,7 @@ def dispatch_make(target: str, name: str, force: bool = False, **extra_options) 
     if "stub_subpath" in gen_config:
         subpath_template = gen_config["stub_subpath"]
         rendered_subpath = Environment().from_string(subpath_template).render(context)
-        stub_dir = stub_dir / rendered_subpath
+        stub_dir = safe_child(stub_dir, rendered_subpath)
 
     if not stub_dir.exists():
         raise ManifestError(f"Stub directory not found on disk: {stub_dir}")
@@ -214,7 +217,7 @@ def dispatch_make(target: str, name: str, force: bool = False, **extra_options) 
     if "dest" in gen_config:
         dest_template = gen_config["dest"]
         rendered_dest = Environment().from_string(dest_template).render(context)
-        dest_dir = dest_dir / rendered_dest
+        dest_dir = safe_child(dest_dir, rendered_dest)
 
     click.echo(f"Scaffolding '{name_title}' ({target}) ...")
     render_stub(stub_dir, dest_dir, context, force=force)
@@ -239,7 +242,7 @@ def dispatch_make(target: str, name: str, force: bool = False, **extra_options) 
             target_file_rel = (
                 Environment().from_string(target_template).render(path=dest_path_rel, **context)
             )
-            target_file = cwd / target_file_rel
+            target_file = safe_child(cwd, target_file_rel)
 
             apply_registration(
                 reg_type=reg_type,
