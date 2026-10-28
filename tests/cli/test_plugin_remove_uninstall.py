@@ -119,7 +119,7 @@ def test_uninstall_legacy_id_in_registry_still_removable(runner, in_tmp_cwd, plu
 
 def test_uninstall_unknown_valid_name_warns(runner, in_tmp_cwd, plugin_project):
     result = runner.invoke(cli, ["plugin", "uninstall", "nope"])
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1, result.output
     assert "not found in registry" in result.output.lower()
 
 
@@ -138,10 +138,61 @@ def test_tampered_project_entries(runner, in_tmp_cwd, plugin_project):
     assert "invalid" in result.output.lower()
 
     result = runner.invoke(cli, ["plugin", "doctor"])
+    assert result.exit_code == 1, result.output
     assert "✖ ../x@1" in result.output
 
     result = runner.invoke(cli, ["plugin", "remove", "--all"])
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1, result.output
     assert sorted(p.name for p in sentinel_dir.iterdir()) == ["keep.txt"]
     kept = yaml.safe_load((pyartisan_dir / "project.yaml").read_text(encoding="utf-8"))
     assert kept["plugins"] == ["../x@1"]
+
+
+def test_uninstall_multi_continues_and_exits_1(runner, in_tmp_cwd, plugin_project):
+    _pyartisan_dir, home = plugin_project
+    src = _make_source(in_tmp_cwd, name="myplugin-src", plugin_id="myplugin")
+    res_inst = runner.invoke(cli, ["plugin", "install", "myplugin", "--local", str(src)])
+    assert res_inst.exit_code == 0
+
+    result = runner.invoke(cli, ["plugin", "uninstall", "nope", "myplugin"])
+    assert result.exit_code == 1, result.output
+    assert "not found in registry" in result.output.lower()
+    assert "uninstalled 'myplugin'" in result.output.lower()
+    assert not (home / ".pyartisan" / "plugins" / "myplugin").exists()
+
+
+def test_remove_multi_continues_and_exits_1(runner, in_tmp_cwd, plugin_project):
+    pyartisan_dir, home = plugin_project
+    src = _make_source(in_tmp_cwd, name="good-src", plugin_id="good")
+    runner.invoke(cli, ["plugin", "install", "good", "--local", str(src)])
+    runner.invoke(cli, ["plugin", "apply", "good"])
+
+    config = yaml.safe_load((pyartisan_dir / "project.yaml").read_text(encoding="utf-8"))
+    config["plugins"].append("../tampered@1.0.0")
+    (pyartisan_dir / "project.yaml").write_text(yaml.dump(config), encoding="utf-8")
+
+    result = runner.invoke(cli, ["plugin", "remove", "--all"])
+    assert result.exit_code == 1, result.output
+    assert "removed good@1.0.0" in result.output.lower()
+    assert "invalid plugin entry" in result.output.lower()
+
+    updated = yaml.safe_load((pyartisan_dir / "project.yaml").read_text(encoding="utf-8"))
+    assert "good@1.0.0" not in updated["plugins"]
+    assert "../tampered@1.0.0" in updated["plugins"]
+
+
+def test_empty_states_exit_0(runner, in_tmp_cwd, plugin_project):
+    # remove with nothing to remove
+    res_rem = runner.invoke(cli, ["plugin", "remove", "nonexistent"])
+    assert res_rem.exit_code == 0, res_rem.output
+    assert "no plugins to remove" in res_rem.output.lower()
+
+    # uninstall with no names
+    res_uninst = runner.invoke(cli, ["plugin", "uninstall"])
+    assert res_uninst.exit_code == 0, res_uninst.output
+    assert "no plugins specified" in res_uninst.output.lower()
+
+    # list with no plugins
+    res_list = runner.invoke(cli, ["plugin", "list"])
+    assert res_list.exit_code == 0, res_list.output
+    assert "no plugins installed" in res_list.output.lower()

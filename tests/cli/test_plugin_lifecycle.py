@@ -54,7 +54,7 @@ def test_cli_plugin_lifecycle(runner, in_tmp_cwd, plugin_project):
 
     # 3. uninstall langsung gagal karena masih dipakai project ini
     result = runner.invoke(cli, ["plugin", "uninstall", "myplugin"])
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1, result.output
     assert "still used by" in result.output.lower()
 
     # 4. remove dari project dulu

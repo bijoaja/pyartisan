@@ -69,3 +69,25 @@ def test_install_accepts_dotted_and_numeric_ids(runner, in_tmp_cwd, plugin_proje
     src = _src(in_tmp_cwd)
     result = runner.invoke(cli, ["plugin", "install", pid, "--local", str(src)])
     assert result.exit_code == 0, result.output
+
+
+@pytest.mark.parametrize(
+    ("args", "expected_err"),
+    [
+        (["p", "--local", "nonexistent/path"], "local path does not exist"),
+        (["p", "--license", "invalid-key"], "invalid license key"),
+        (["invalidname"], "specify github path"),
+    ],
+)
+def test_install_failures_exit_1(runner, in_tmp_cwd, plugin_project, args, expected_err):
+    result = runner.invoke(cli, ["plugin", "install", *args])
+    assert result.exit_code == 1, result.output
+    assert expected_err in result.output.lower()
+
+
+def test_install_missing_manifest_exits_1(runner, in_tmp_cwd, plugin_project):
+    empty_src = in_tmp_cwd / "empty_src"
+    empty_src.mkdir()
+    result = runner.invoke(cli, ["plugin", "install", "nomanifest", "--local", str(empty_src)])
+    assert result.exit_code == 1, result.output
+    assert "missing manifest.yaml" in result.output.lower()
