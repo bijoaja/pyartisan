@@ -12,15 +12,16 @@ cd pyartisan
 uv tool install --editable .    # isolated env, no venv needed
 ```
 
-Run the test suite (pytest) and linter (ruff):
+Run the test suite (pytest), linter (ruff), and type checker (mypy):
 
 ```bash
 uv run pytest
 uv run ruff check .
 uv run ruff format --check .
+uv run mypy
 ```
 
-All 24 tests and lint checks should pass.
+All tests, lint checks, and type checks should pass.
 
 ## Pull requests
 

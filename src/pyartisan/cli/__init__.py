@@ -1,4 +1,5 @@
 import sys
+from typing import Any
 
 import click
 
@@ -15,7 +16,7 @@ from pyartisan.cli.commands import (
 )
 
 
-def _force_utf8(*streams) -> None:
+def _force_utf8(*streams: Any) -> None:
     """Output uses symbols like ✔ and ❌; legacy Windows codepages (cp1252) crash on them."""
     for s in streams or (sys.stdout, sys.stderr):
         if (
@@ -34,7 +35,7 @@ _force_utf8()
 
 @click.group()
 @click.version_option(__version__, prog_name="pyartisan")
-def cli():
+def cli() -> None:
     """pyartisan - AI-powered Python Web Development Toolkit"""
     pass
 

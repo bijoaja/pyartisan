@@ -78,6 +78,12 @@ uv run ruff format --check . # check formatting
 uv run ruff format .         # format code
 ```
 
+Type checking uses Mypy (also runs in CI, `lint` job):
+
+```bash
+uv run mypy                  # static type check across all source files
+```
+
 Security scanning uses Bandit (also runs in CI, `lint` job) and Semgrep (local only, needs registry access):
 
 ```bash

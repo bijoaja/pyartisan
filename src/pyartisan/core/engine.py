@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import click
 import yaml
@@ -170,7 +171,7 @@ def dispatch_new(framework: str, project_name: str) -> None:
     click.echo("   pyartisan serve\n")
 
 
-def dispatch_make(target: str, name: str, force: bool = False, **extra_options) -> None:
+def dispatch_make(target: str, name: str, force: bool = False, **extra_options: Any) -> None:
     """Process file generation using manifest.yaml configuration."""
     validate_name(name, "name")
     cwd = Path.cwd()

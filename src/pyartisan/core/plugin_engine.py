@@ -62,7 +62,7 @@ class ProjectContext:
         else:
             self.template_config = {}
 
-    def create_service(self, name: str, stub_path: str):
+    def create_service(self, name: str, stub_path: str) -> None:
         # Resolve path dari template_config
         # e.g. paths.services: app/modules/{module}/service.py
         path_template = self.template_config.get("paths", {}).get("services")
@@ -98,7 +98,7 @@ class ProjectContext:
         with open(dest_path, "w", encoding="utf-8") as f:
             f.write(rendered)
 
-    def register_router(self, name: str):
+    def register_router(self, name: str) -> None:
         # Dapatkan spesifikasi marker dari template.yaml
         # markers: routers: file: app/main.py, marker: "# pyartisan:routers"
         marker_cfg = self.template_config.get("markers", {}).get("routers", {})
@@ -133,7 +133,7 @@ class ProjectContext:
             line_template=line_template,
         )
 
-    def add_dependency(self, package_name: str):
+    def add_dependency(self, package_name: str) -> None:
         # Tambahkan package ke requirements.txt proyek jika ada
         req_file = self.project_path / "requirements.txt"
         if req_file.exists():

@@ -78,6 +78,12 @@ uv run ruff format --check . # periksa formatting
 uv run ruff format .         # format kode otomatis
 ```
 
+Type checking menggunakan Mypy (juga berjalan di CI, job `lint`):
+
+```bash
+uv run mypy                  # periksa static type annotations di seluruh modul sumber
+```
+
 Pemindaian keamanan memakai Bandit (juga berjalan di CI, job `lint`) dan Semgrep (hanya lokal, butuh akses registry):
 
 ```bash

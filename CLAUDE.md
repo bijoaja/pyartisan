@@ -29,6 +29,11 @@ uv run ruff format --check . # periksa formatting
 uv run ruff format .         # format kode otomatis
 ```
 
+Jalankan type checking berbasis Mypy:
+```bash
+uv run mypy                  # periksa static type annotations (juga di CI, job lint)
+```
+
 Jalankan pemindai keamanan:
 ```bash
 uv run bandit -q -r src -c pyproject.toml                          # Bandit (juga di CI, job lint)
