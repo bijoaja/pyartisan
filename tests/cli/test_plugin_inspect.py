@@ -66,3 +66,8 @@ def test_cli_plugin_list_updates(runner, in_tmp_cwd, plugin_project):
     result = runner.invoke(cli, ["plugin", "list", "--updates"])
     assert result.exit_code == 0, result.output
     assert "no git-based plugins in registry" in result.output.lower()
+
+
+def test_info_rejects_bad_name(runner, in_tmp_cwd, plugin_project):
+    result = runner.invoke(cli, ["plugin", "info", "../evil"])
+    assert result.exit_code != 0

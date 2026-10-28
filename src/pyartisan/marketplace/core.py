@@ -5,6 +5,8 @@ from pathlib import Path
 
 import click
 
+from pyartisan.utils.safe import safe_child
+
 
 def _global_registry() -> Path:
     return Path(os.path.expanduser("~")) / ".pyartisan"
@@ -17,7 +19,7 @@ def _plugins_registry() -> Path:
 
 
 def _usage_file(plugins_registry: Path, plugin_id: str) -> Path:
-    return plugins_registry / plugin_id / "usage.json"
+    return safe_child(plugins_registry, plugin_id, "usage.json")
 
 
 def _load_usage(plugins_registry: Path, plugin_id: str) -> dict:
@@ -67,6 +69,8 @@ def _load_hooks(plugin_dir: Path):
     import importlib.util
 
     spec = importlib.util.spec_from_file_location("plugin_hooks", hooks_file)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load hooks from {hooks_file}")
     hooks_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(hooks_module)
     return hooks_module
@@ -78,7 +82,7 @@ def _verify_blockchain_license(plugin_id: str, license_key: str) -> bool:
     return False
 
 
-def _resolve_plugin_version(plugin_root: Path) -> str:
+def _resolve_plugin_version(plugin_root: Path) -> str | None:
     version_dirs = sorted(d.name for d in plugin_root.iterdir() if d.is_dir())
     if "dev" in version_dirs:
         return "dev"
@@ -88,17 +92,19 @@ def _resolve_plugin_version(plugin_root: Path) -> str:
 
 
 def _find_registry_dir(plugins_registry: Path, plugin_id: str, version: str) -> Path:
-    plugin_root = plugins_registry / plugin_id
-    exact = plugin_root / version if version else None
-    if exact and exact.exists():
-        return exact
-    if (plugin_root / "dev").exists():
-        return plugin_root / "dev"
+    plugin_root = safe_child(plugins_registry, plugin_id)
+    if version:
+        exact = safe_child(plugin_root, version)
+        if exact.exists():
+            return exact
+    dev = safe_child(plugin_root, "dev")
+    if dev.exists():
+        return dev
     if plugin_root.exists():
         fallback_version = _resolve_plugin_version(plugin_root)
         if fallback_version:
-            return plugin_root / fallback_version
-    return plugin_root / (version or "dev")
+            return safe_child(plugin_root, fallback_version)
+    return safe_child(plugin_root, version or "dev")
 
 
 def _version_key(version: str):

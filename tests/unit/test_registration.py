@@ -46,3 +46,10 @@ def test_registration_marker(tmp_path):
         line_template="app.include_router({{name_lower}}_router)",
     )
     assert content.count("app.include_router(post_router)") == 1
+
+
+def test_marker_registration_without_marker_is_noop(tmp_path):
+    target = tmp_path / "main.py"
+    target.write_text("initial content\n", encoding="utf-8")
+    apply_registration("marker", target, {}, marker=None, line_template=None)
+    assert target.read_text(encoding="utf-8") == "initial content\n"

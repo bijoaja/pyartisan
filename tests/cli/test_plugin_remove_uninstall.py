@@ -1,3 +1,4 @@
+import pytest
 import yaml
 
 from pyartisan.cli import cli
@@ -48,3 +49,99 @@ def test_cli_plugin_remove_multi_and_all(runner, in_tmp_cwd, plugin_project):
     assert result.exit_code == 0, result.output
     updated_config3 = yaml.safe_load((pyartisan_dir / "project.yaml").read_text(encoding="utf-8"))
     assert updated_config3["plugins"] == []
+
+
+def _make_source(root, name="myplugin-src", plugin_id="myplugin"):
+    src = root / name
+    src.mkdir()
+    (src / "manifest.yaml").write_text(
+        yaml.dump({"id": plugin_id, "name": plugin_id, "version": "1.0.0"}), encoding="utf-8"
+    )
+    return src
+
+
+@pytest.mark.parametrize("bad", ["..", "../x", "HOME_ABS", "myplugin/", "./myplugin", r"a\b"])
+def test_uninstall_rejects_unsafe_names(runner, in_tmp_cwd, plugin_project, bad):
+    _pyartisan_dir, home = plugin_project
+    src = _make_source(in_tmp_cwd)
+    result = runner.invoke(cli, ["plugin", "install", "myplugin", "--local", str(src)])
+    assert result.exit_code == 0, result.output
+    sentinel = home / ".pyartisan" / "config.toml"
+    sentinel.write_text("x", encoding="utf-8")
+
+    name = str(home) if bad == "HOME_ABS" else bad
+    result = runner.invoke(cli, ["plugin", "uninstall", name])
+
+    assert result.exit_code != 0, result.output
+    assert sentinel.exists()
+    assert (home / ".pyartisan" / "plugins" / "myplugin").exists()
+
+
+def test_uninstall_keeps_dev_source(runner, in_tmp_cwd, plugin_project):
+    _pyartisan_dir, home = plugin_project
+    src = _make_source(in_tmp_cwd)
+    result = runner.invoke(cli, ["plugin", "install", "myplugin", "--local", str(src)])
+    assert result.exit_code == 0, result.output
+
+    result = runner.invoke(cli, ["plugin", "uninstall", "myplugin"])
+
+    assert result.exit_code == 0, result.output
+    assert not (home / ".pyartisan" / "plugins" / "myplugin").exists()
+    assert (src / "manifest.yaml").exists()
+
+
+def test_uninstall_all_still_works(runner, in_tmp_cwd, plugin_project):
+    _pyartisan_dir, home = plugin_project
+    for pid in ("one", "two"):
+        src = _make_source(in_tmp_cwd, name=f"{pid}-src", plugin_id=pid)
+        result = runner.invoke(cli, ["plugin", "install", pid, "--local", str(src)])
+        assert result.exit_code == 0, result.output
+
+    result = runner.invoke(cli, ["plugin", "uninstall", "--all"])
+
+    assert result.exit_code == 0, result.output
+    registry = home / ".pyartisan" / "plugins"
+    assert not (registry / "one").exists()
+    assert not (registry / "two").exists()
+    assert (home / ".pyartisan" / "templates").exists()
+
+
+def test_uninstall_legacy_id_in_registry_still_removable(runner, in_tmp_cwd, plugin_project):
+    _pyartisan_dir, home = plugin_project
+    legacy = home / ".pyartisan" / "plugins" / "bad name"
+    legacy.mkdir(parents=True)
+
+    result = runner.invoke(cli, ["plugin", "uninstall", "bad name"])
+
+    assert result.exit_code == 0, result.output
+    assert not legacy.exists()
+
+
+def test_uninstall_unknown_valid_name_warns(runner, in_tmp_cwd, plugin_project):
+    result = runner.invoke(cli, ["plugin", "uninstall", "nope"])
+    assert result.exit_code == 0, result.output
+    assert "not found in registry" in result.output.lower()
+
+
+def test_tampered_project_entries(runner, in_tmp_cwd, plugin_project):
+    pyartisan_dir, home = plugin_project
+    sentinel_dir = home / ".pyartisan" / "x"
+    sentinel_dir.mkdir()
+    (sentinel_dir / "keep.txt").write_text("k", encoding="utf-8")
+    config = yaml.safe_load((pyartisan_dir / "project.yaml").read_text(encoding="utf-8"))
+    config["plugins"] = ["../x@1"]
+    (pyartisan_dir / "project.yaml").write_text(yaml.dump(config), encoding="utf-8")
+
+    result = runner.invoke(cli, ["plugin", "status"])
+    assert result.exit_code == 0, result.output
+    assert "✖" in result.output
+    assert "invalid" in result.output.lower()
+
+    result = runner.invoke(cli, ["plugin", "doctor"])
+    assert "✖ ../x@1" in result.output
+
+    result = runner.invoke(cli, ["plugin", "remove", "--all"])
+    assert result.exit_code == 0, result.output
+    assert sorted(p.name for p in sentinel_dir.iterdir()) == ["keep.txt"]
+    kept = yaml.safe_load((pyartisan_dir / "project.yaml").read_text(encoding="utf-8"))
+    assert kept["plugins"] == ["../x@1"]

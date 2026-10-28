@@ -29,6 +29,13 @@ uv run ruff format --check . # periksa formatting
 uv run ruff format .         # format kode otomatis
 ```
 
+Jalankan pemindai keamanan:
+```bash
+uv run bandit -q -r src -c pyproject.toml                          # Bandit (juga di CI, job lint)
+uvx semgrep --config p/python --config p/security-audit src        # Semgrep (lokal saja, butuh akses registry)
+```
+Setiap `# nosec` / `# nosemgrep` wajib disertai alasan tertulis di baris yang sama.
+
 Cover: `name_parts`, `load_manifest`, `render_stub`, registrasi (`import_list`, `marker`), `config` load/save/reset, `make` generik (termasuk target tidak dikenal dan tanpa manifest), `ProjectContext`, seluruh siklus `plugin` (`init`, `install`, `apply`, `remove`, `uninstall`, `list`, `info`, `status`, `doctor`), pemilihan installer uv vs pip, pemaksaan UTF-8, dan pemilihan venv project untuk `serve`.
 
 ## Arsitektur Codebase

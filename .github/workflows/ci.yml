@@ -28,6 +28,8 @@ jobs:
         run: uv run ruff check .
       - name: Ruff Format Check
         run: uv run ruff format --check .
+      - name: Bandit
+        run: uv run bandit -q -r src -c pyproject.toml
 
   test:
     runs-on: ${{ matrix.os }}

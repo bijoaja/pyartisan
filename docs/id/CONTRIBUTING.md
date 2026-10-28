@@ -78,6 +78,15 @@ uv run ruff format --check . # periksa formatting
 uv run ruff format .         # format kode otomatis
 ```
 
+Pemindaian keamanan memakai Bandit (juga berjalan di CI, job `lint`) dan Semgrep (hanya lokal, butuh akses registry):
+
+```bash
+uv run bandit -q -r src -c pyproject.toml
+uvx semgrep --config p/python --config p/security-audit src
+```
+
+Setiap suppress `# nosec` / `# nosemgrep` wajib disertai alasan tertulis di baris yang sama.
+
 CI berjalan di GitHub Actions pada pull request dan push ke `main` di Ubuntu, Windows, dan macOS dengan Python 3.10 dan 3.14.
 
 Setiap perubahan logika non-trivial sebaiknya menambah test case di bawah `tests/unit/` atau `tests/cli/`.

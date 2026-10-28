@@ -1,3 +1,7 @@
+import subprocess
+
+import pytest
+
 from pyartisan.cli import cli
 
 
@@ -12,3 +16,49 @@ def test_cli_plugin_install_blockchain_license(runner, in_tmp_cwd, plugin_projec
         cli, ["plugin", "install", "premium-plugin", "--license", "invalid-key"]
     )
     assert "invalid license key" in result_invalid.output.lower()
+
+
+def _src(root):
+    src = root / "src"
+    src.mkdir()
+    (src / "manifest.yaml").write_text("id: p\nname: P\nversion: 1.0.0\n", encoding="utf-8")
+    return src
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["..", "--local", "SRC"],
+        ["../x", "--local", "SRC"],
+        ["..", "--license", "valid-1"],
+        ["owner/.."],
+        ["owner/."],
+        ["../x/y"],
+    ],
+)
+def test_install_rejects_bad_names(runner, in_tmp_cwd, plugin_project, monkeypatch, args):
+    _pyartisan_dir, home = plugin_project
+    src = _src(in_tmp_cwd)
+
+    def _boom(*a, **k):
+        raise AssertionError("subprocess.run must not be called")
+
+    monkeypatch.setattr(subprocess, "run", _boom)
+    (home / ".pyartisan" / "plugins").mkdir(exist_ok=True)
+    before = sorted(p.name for p in (home / ".pyartisan").iterdir())
+
+    result = runner.invoke(
+        cli, ["plugin", "install", *[str(src) if a == "SRC" else a for a in args]]
+    )
+
+    assert result.exit_code != 0, result.output
+    assert sorted(p.name for p in (home / ".pyartisan").iterdir()) == before
+    assert not (home / ".pyartisan" / "x").exists()
+    assert list((home / ".pyartisan" / "plugins").iterdir()) == []
+
+
+@pytest.mark.parametrize("pid", ["my.plugin", "42-crud"])
+def test_install_accepts_dotted_and_numeric_ids(runner, in_tmp_cwd, plugin_project, pid):
+    src = _src(in_tmp_cwd)
+    result = runner.invoke(cli, ["plugin", "install", pid, "--local", str(src)])
+    assert result.exit_code == 0, result.output

@@ -27,6 +27,7 @@ pyartisan = ["templates/plugin_init/**/*"]
 
 [dependency-groups]
 dev = [
+    "bandit[toml]>=1.7",
     "pytest",
     "ruff>=0.4.0",
 ]
@@ -58,3 +59,9 @@ docstring-code-format = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+# B404/B603/B607: every subprocess call passes an argv list, never shell=True,
+# and runs fixed executables (git, uv, docker, python).
+skips = ["B404", "B603", "B607"]

@@ -78,6 +78,15 @@ uv run ruff format --check . # check formatting
 uv run ruff format .         # format code
 ```
 
+Security scanning uses Bandit (also runs in CI, `lint` job) and Semgrep (local only, needs registry access):
+
+```bash
+uv run bandit -q -r src -c pyproject.toml
+uvx semgrep --config p/python --config p/security-audit src
+```
+
+Every `# nosec` / `# nosemgrep` suppression must carry a written reason on the same line.
+
 CI runs on GitHub Actions on pull requests and pushes to `main` across Ubuntu, Windows, and macOS on Python 3.10 and 3.14.
 
 Every non-trivial logic change should add test cases under `tests/unit/` or `tests/cli/`.

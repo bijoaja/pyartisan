@@ -12,8 +12,9 @@ from pyartisan import config as config_module
 from pyartisan.core.exceptions import GeneratorNotSupported, ManifestError, TemplateNotFound
 from pyartisan.core.manifest import load_manifest
 from pyartisan.core.registration import apply_registration
-from pyartisan.renderer import render_stub
+from pyartisan.renderer import make_env, render_stub
 from pyartisan.utils.naming import name_parts
+from pyartisan.utils.safe import safe_child, validate_clone_url, validate_name
 
 
 def _venv_cmd(uv: str | None) -> list[str]:
@@ -53,8 +54,30 @@ def _detect_install_plan(
     return None
 
 
+def _template_meta(manifest_path: Path, default_name: str, default_version: str) -> tuple[str, str]:
+    if not manifest_path.exists():
+        return default_name, default_version
+    try:
+        with open(manifest_path, encoding="utf-8") as f:
+            m_data = yaml.safe_load(f)
+        if not isinstance(m_data, dict):
+            click.echo(
+                f"⚠ Could not read template manifest: expected mapping, got {type(m_data).__name__}. Using defaults."
+            )
+            return default_name, default_version
+        tid = m_data.get("id")
+        tver = m_data.get("version")
+        template_name = str(tid) if tid is not None else default_name
+        template_version = str(tver) if tver is not None else default_version
+        return template_name, template_version
+    except (OSError, yaml.YAMLError) as e:
+        click.echo(f"⚠ Could not read template manifest: {e}. Using defaults.")
+        return default_name, default_version
+
+
 def dispatch_new(framework: str, project_name: str) -> None:
     """Initialize a new project by cloning the framework template."""
+    validate_name(project_name, "project name")
     config_data = config_module.load()
     templates = config_data.get(
         "templates",
@@ -71,6 +94,7 @@ def dispatch_new(framework: str, project_name: str) -> None:
         )
 
     repo_url = templates[framework]
+    validate_clone_url(repo_url, "template URL")
 
     if os.path.exists(project_name):
         click.echo(f"❌ Folder '{project_name}' already exists, choose a different name.")
@@ -79,7 +103,7 @@ def dispatch_new(framework: str, project_name: str) -> None:
     click.echo(f"⬇ Cloning {framework} template repository ...")
     try:
         result = subprocess.run(
-            ["git", "clone", repo_url, project_name], capture_output=True, text=True
+            ["git", "clone", "--", repo_url, project_name], capture_output=True, text=True
         )
         if result.returncode != 0:
             click.echo("❌ Failed to clone project!")
@@ -94,16 +118,7 @@ def dispatch_new(framework: str, project_name: str) -> None:
 
     # Generate .pyartisan/project.yaml (baca manifest.yaml di dalam template)
     manifest_path = Path(project_name) / ".pyartisan" / "manifest.yaml"
-    template_name = framework + "iq"
-    template_version = "1.0"
-    if manifest_path.exists():
-        try:
-            with open(manifest_path) as f:
-                m_data = yaml.safe_load(f)
-                template_name = m_data.get("id", template_name)
-                template_version = str(m_data.get("version", template_version))
-        except Exception:
-            pass
+    template_name, template_version = _template_meta(manifest_path, framework + "iq", "1.0")
 
     project_yaml = {
         "project": {"name": project_name},
@@ -111,7 +126,7 @@ def dispatch_new(framework: str, project_name: str) -> None:
         "template": {"name": template_name, "version": template_version},
         "plugins": [],
     }
-    with open(Path(project_name) / ".pyartisan" / "project.yaml", "w") as f:
+    with open(Path(project_name) / ".pyartisan" / "project.yaml", "w", encoding="utf-8") as f:
         yaml.dump(project_yaml, f)
 
     install_dependencies = click.confirm(
@@ -158,6 +173,7 @@ def dispatch_new(framework: str, project_name: str) -> None:
 
 def dispatch_make(target: str, name: str, force: bool = False, **extra_options) -> None:
     """Process file generation using manifest.yaml configuration."""
+    validate_name(name, "name")
     cwd = Path.cwd()
     manifest = load_manifest(cwd)
 
@@ -176,7 +192,7 @@ def dispatch_make(target: str, name: str, force: bool = False, **extra_options) 
             f"Generator '{target}' configuration must specify 'stub' and 'path' keys."
         )
 
-    stub_dir = cwd / ".pyartisan" / stub_rel
+    stub_dir = safe_child(cwd, ".pyartisan", stub_rel)
 
     dest_path_rel = manifest.get("paths", {}).get(path_key)
     if not dest_path_rel:
@@ -184,7 +200,7 @@ def dispatch_make(target: str, name: str, force: bool = False, **extra_options) 
             f"Path key '{path_key}' (used by '{target}') is not defined in manifest 'paths'."
         )
 
-    dest_dir = cwd / dest_path_rel
+    dest_dir = safe_child(cwd, dest_path_rel)
 
     # Render context
     name_lower, name_title, name_snake, name_plural = name_parts(name)
@@ -200,12 +216,10 @@ def dispatch_make(target: str, name: str, force: bool = False, **extra_options) 
     }
 
     # Evaluate dynamic stub_subpath if defined
-    from jinja2 import Environment
-
     if "stub_subpath" in gen_config:
         subpath_template = gen_config["stub_subpath"]
-        rendered_subpath = Environment().from_string(subpath_template).render(context)
-        stub_dir = stub_dir / rendered_subpath
+        rendered_subpath = make_env().from_string(subpath_template).render(context)
+        stub_dir = safe_child(stub_dir, rendered_subpath)
 
     if not stub_dir.exists():
         raise ManifestError(f"Stub directory not found on disk: {stub_dir}")
@@ -213,8 +227,8 @@ def dispatch_make(target: str, name: str, force: bool = False, **extra_options) 
     # Evaluate dynamic dest if defined
     if "dest" in gen_config:
         dest_template = gen_config["dest"]
-        rendered_dest = Environment().from_string(dest_template).render(context)
-        dest_dir = dest_dir / rendered_dest
+        rendered_dest = make_env().from_string(dest_template).render(context)
+        dest_dir = safe_child(dest_dir, rendered_dest)
 
     click.echo(f"Scaffolding '{name_title}' ({target}) ...")
     render_stub(stub_dir, dest_dir, context, force=force)
@@ -237,9 +251,9 @@ def dispatch_make(target: str, name: str, force: bool = False, **extra_options) 
 
             # Render target path
             target_file_rel = (
-                Environment().from_string(target_template).render(path=dest_path_rel, **context)
+                make_env().from_string(target_template).render(path=dest_path_rel, **context)
             )
-            target_file = cwd / target_file_rel
+            target_file = safe_child(cwd, target_file_rel)
 
             apply_registration(
                 reg_type=reg_type,

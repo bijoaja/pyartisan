@@ -2,9 +2,9 @@ import os
 from pathlib import Path
 
 import yaml
-from jinja2 import Environment
 
 from pyartisan.core.registration import apply_registration
+from pyartisan.renderer import make_env
 from pyartisan.utils.naming import name_parts
 
 
@@ -81,7 +81,7 @@ class ProjectContext:
         if Path(stub_path).exists():
             with open(stub_path) as f:
                 template_data = f.read()
-            rendered = Environment().from_string(template_data).render(context)
+            rendered = make_env().from_string(template_data).render(context)
             with open(dest_path, "w") as f:
                 f.write(rendered)
 

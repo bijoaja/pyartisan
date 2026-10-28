@@ -1,4 +1,8 @@
-from pyartisan.renderer import render_stub
+import pytest
+from jinja2.exceptions import SecurityError
+
+from pyartisan.core.exceptions import PyArtisanError
+from pyartisan.renderer import make_env, render_stub
 
 
 def test_render_stub(tmp_path):
@@ -38,3 +42,39 @@ def test_render_stub_nested(tmp_path):
         encoding="utf-8"
     ) == "class PostController: pass\n"
     assert (dest_dir / "flat.py").read_text(encoding="utf-8") == "x = 'post'\n"
+
+
+def test_render_stub_rejects_escape(tmp_path):
+    stub_dir = tmp_path / "stubs"
+    stub_dir.mkdir()
+    (stub_dir / "{{name_lower}}_c.py.jinja").write_text("x\n", encoding="utf-8")
+    dest_dir = tmp_path / "a" / "b" / "c"
+
+    with pytest.raises(PyArtisanError):
+        render_stub(stub_dir, dest_dir, {"name_lower": "../../../escaped"})
+
+    assert not list(tmp_path.glob("escaped*"))
+    assert not list(tmp_path.rglob("*_c.py"))
+
+
+def test_render_stub_rejects_before_writing_anything(tmp_path):
+    stub_dir = tmp_path / "stubs"
+    stub_dir.mkdir()
+    (stub_dir / "a_ok.py.jinja").write_text("ok\n", encoding="utf-8")
+    (stub_dir / "{{evil}}.py.jinja").write_text("bad\n", encoding="utf-8")
+    dest_dir = tmp_path / "out"
+
+    with pytest.raises(PyArtisanError):
+        render_stub(stub_dir, dest_dir, {"evil": "../x"})
+
+    assert not dest_dir.exists() or not any(dest_dir.iterdir())
+    assert not (tmp_path / "x.py").exists()
+
+
+def test_make_env_blocks_dunder_access():
+    with pytest.raises(SecurityError):
+        make_env().from_string("{{ ''.__class__.__mro__ }}").render()
+
+
+def test_make_env_keeps_quotes_unescaped():
+    assert make_env().from_string("{{ x }}").render(x='"a"') == '"a"'

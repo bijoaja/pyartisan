@@ -75,3 +75,72 @@ def test_cli_make_no_manifest(runner, in_tmp_cwd):
     result = runner.invoke(cli, ["make", "model", "Post"])
     assert result.exit_code != 0
     assert "Not a pyartisan project" in result.output
+
+
+def _project(root, generator=None):
+    """Create <root>/proj with a manifest and one controller stub; return the project dir."""
+    proj = root / "proj"
+    manifest_dir = proj / ".pyartisan"
+    (manifest_dir / "stubs" / "ctl").mkdir(parents=True)
+    (manifest_dir / "stubs" / "ctl" / "{{name_lower}}.py.jinja").write_text(
+        "class {{name_title}}: pass\n", encoding="utf-8"
+    )
+    gen = {"stub": "stubs/ctl", "path": "controller"}
+    gen.update(generator or {})
+    manifest = {
+        "id": "testproj",
+        "framework": "flask",
+        "paths": {"controller": "app/controller"},
+        "generators": {"controller": gen},
+    }
+    (manifest_dir / "manifest.yaml").write_text(yaml.dump(manifest), encoding="utf-8")
+    return proj
+
+
+def _files(root):
+    return sorted(p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file())
+
+
+def test_make_rejects_traversal_name(runner, tmp_path, monkeypatch):
+    proj = _project(tmp_path)
+    monkeypatch.chdir(proj)
+    before = _files(tmp_path)
+
+    result = runner.invoke(cli, ["make", "controller", "../../escaped"])
+
+    assert result.exit_code == 1, result.output
+    assert _files(tmp_path) == before
+
+
+def test_make_rejects_nested_name(runner, tmp_path, monkeypatch):
+    proj = _project(tmp_path)
+    monkeypatch.chdir(proj)
+    before = _files(tmp_path)
+
+    result = runner.invoke(cli, ["make", "controller", "admin/user"])
+
+    assert result.exit_code == 1, result.output
+    assert _files(tmp_path) == before
+
+
+def test_make_rejects_manifest_dest_escape(runner, tmp_path, monkeypatch):
+    proj = _project(tmp_path, {"dest": "../../out"})
+    monkeypatch.chdir(proj)
+    before = _files(tmp_path)
+
+    result = runner.invoke(cli, ["make", "controller", "Post"])
+
+    assert result.exit_code == 1, result.output
+    assert _files(tmp_path) == before
+
+
+def test_new_rejects_bad_project_name(runner, in_tmp_cwd, isolated_config, monkeypatch):
+    def _boom(*args, **kwargs):
+        raise AssertionError("subprocess.run must not be called")
+
+    monkeypatch.setattr("subprocess.run", _boom)
+
+    result = runner.invoke(cli, ["new", "flask", "../x"])
+
+    assert result.exit_code == 1, result.output
+    assert "Invalid project name" in result.output
