@@ -181,7 +181,7 @@ Merender stub dengan variabel `name`, `name_lower`, `name_title`, `name_snake`, 
 * `paths.services` dari `template.yaml` bila ada, atau
 * fallback `app/services/{module}.py` (fastapi) / `app/service/{module}.py` (lainnya), dengan `{module}` = `name_lower`.
 
-> **`stub_path` relatif dihitung dari direktori kerja saat ini (root project), bukan dari root plugin.** Jika file stub tidak ditemukan, method ini **tidak menulis apa pun dan tidak menampilkan error**. Terverifikasi: `stub_path="stubs/service.py.jinja"` tidak menghasilkan file, sedangkan path absolut berhasil. Selalu pakai path absolut.
+> **`stub_path` relatif dihitung dari direktori kerja saat ini (root project), bukan dari root plugin.** Jika file stub tidak ditemukan, method ini **menimbulkan error `ManifestError`**. Selalu pakai path absolut.
 
 ## Register Router
 

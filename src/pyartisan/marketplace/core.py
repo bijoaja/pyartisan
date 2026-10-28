@@ -107,8 +107,17 @@ def _find_registry_dir(plugins_registry: Path, plugin_id: str, version: str) -> 
     return safe_child(plugin_root, version or "dev")
 
 
-def _version_key(version: str):
-    return tuple(int(part) if part.isdigit() else part for part in version.split("."))
+def _version_key(version: str) -> tuple:
+    if "-" in version:
+        main_ver, _, pre = version.partition("-")
+        is_release = 0
+    else:
+        main_ver = version
+        is_release = 1
+        pre = ""
+
+    core = tuple((0, int(part)) if part.isdigit() else (1, part) for part in main_ver.split("."))
+    return (core, is_release, pre)
 
 
 def _latest_version(versions: list) -> str:

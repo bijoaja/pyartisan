@@ -7,7 +7,11 @@ import click
 import yaml
 
 from pyartisan.core.exceptions import PyArtisanError
-from pyartisan.core.plugin_engine import ProjectContext, load_plugin_yaml
+from pyartisan.core.plugin_engine import (
+    ProjectContext,
+    has_requirement,
+    load_plugin_yaml,
+)
 from pyartisan.marketplace.core import (
     _all_usages,
     _check_updates,
@@ -659,8 +663,8 @@ def doctor_cmd():
         manifest = load_plugin_yaml(manifest_file)
         deps = manifest.get("dependencies", {}).get("pip", [])
         req_file = cwd / "requirements.txt"
-        req_content = req_file.read_text() if req_file.exists() else ""
-        missing = [d for d in deps if d not in req_content]
+        req_content = req_file.read_text(encoding="utf-8") if req_file.exists() else ""
+        missing = [d for d in deps if not has_requirement(req_content, d)]
         if missing:
             click.echo(
                 f"✖ Dependencies ({plugin_id}: missing {', '.join(missing)} in requirements.txt)"

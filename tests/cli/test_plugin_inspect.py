@@ -62,6 +62,29 @@ def test_cli_plugin_info_status_doctor(runner, in_tmp_cwd, plugin_project):
     assert "plugin has issues" in result.output.lower()
 
 
+def test_doctor_flags_missing_dep_with_similar_name(runner, in_tmp_cwd, plugin_project):
+    root = in_tmp_cwd
+    _pyartisan_dir, _home_dir = plugin_project
+    plugin_src_dir = root / "httpx-plugin"
+    plugin_src_dir.mkdir()
+    manifest_content = {
+        "id": "myhttpx",
+        "name": "HTTPX Plugin",
+        "version": "1.0.0",
+        "dependencies": {"pip": ["httpx"]},
+    }
+    with open(plugin_src_dir / "manifest.yaml", "w", encoding="utf-8") as f:
+        yaml.dump(manifest_content, f)
+
+    runner.invoke(cli, ["plugin", "install", "myhttpx", "--local", str(plugin_src_dir)])
+    runner.invoke(cli, ["plugin", "apply", "myhttpx"])
+
+    # requirements.txt contains httpx-extra (which contains httpx as a substring)
+    (root / "requirements.txt").write_text("httpx-extra\n", encoding="utf-8")
+    result = runner.invoke(cli, ["plugin", "doctor"])
+    assert "missing httpx" in result.output.lower()
+
+
 def test_cli_plugin_list_updates(runner, in_tmp_cwd, plugin_project):
     result = runner.invoke(cli, ["plugin", "list", "--updates"])
     assert result.exit_code == 0, result.output

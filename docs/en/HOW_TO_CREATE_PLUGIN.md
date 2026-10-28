@@ -181,7 +181,7 @@ Renders the stub with the variables `name`, `name_lower`, `name_title`, `name_sn
 * `paths.services` from `template.yaml` if present, or
 * the fallback `app/services/{module}.py` (fastapi) / `app/service/{module}.py` (others), with `{module}` = `name_lower`.
 
-> **A relative `stub_path` is resolved from the current working directory (the project root), not from the plugin root.** If the stub file is not found, this method **writes nothing and shows no error**. Verified: `stub_path="stubs/service.py.jinja"` produces no file, while an absolute path works. Always use an absolute path.
+> **A relative `stub_path` is resolved from the current working directory (the project root), not from the plugin root.** If the stub file is not found, this method **raises `ManifestError`**. Always use an absolute path.
 
 ## Register Router
 
