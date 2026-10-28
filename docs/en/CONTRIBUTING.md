@@ -46,7 +46,7 @@ src/pyartisan/
 ├── shared/           # doctor logic
 ├── utils/            # console, fs, naming
 └── templates/plugin_init/   # skeleton for `plugin init`
-tests/smoke_test.py   # the only test
+tests/                # modular pytest test suite (unit/ and cli/)
 docs/                 # documentation (id/ and en/); docs/superpowers/ holds specs and plans
 ```
 
@@ -56,23 +56,22 @@ Principle: `cli/` only parses arguments and calls functions in `core/engine.py`.
 
 ## 3. Running the tests
 
-There is no test framework. The only check is `tests/smoke_test.py` (plain asserts). From the repo root:
+Tests use pytest and are run via `uv`:
 
 ```bash
-PYTHONPATH=src uv run --no-project --with click --with jinja2 --with pyyaml --with flask --with sqlalchemy python tests/smoke_test.py
+uv run pytest
 ```
 
-If `python` is already in a venv that has the project dependencies, this is enough:
+To run a subset of tests:
 
 ```bash
-PYTHONPATH=src python tests/smoke_test.py
+uv run pytest tests/unit/
+uv run pytest tests/cli/test_make.py
 ```
 
-A correct run ends with `ALL SMOKE TESTS PASSED`. The first command leaves no files in the repo; do not use `uv run --with-editable .` because it creates an untracked `uv.lock`.
+CI runs on GitHub Actions on pull requests and pushes to `main` across Ubuntu, Windows, and macOS on Python 3.10 and 3.14.
 
-There is no CI, linter or formatter. Before opening a PR, run the smoke test and, if your change touches CLI behavior, run the command itself manually.
-
-Every non-trivial logic change should add one `test_...` function to `tests/smoke_test.py` and register it in `main()`.
+Every non-trivial logic change should add test cases under `tests/unit/` or `tests/cli/`.
 
 ---
 
@@ -81,7 +80,7 @@ Every non-trivial logic change should add one `test_...` function to `tests/smok
 1. Find or open an issue describing the problem.
 2. Create a branch from `main`, e.g. `fix/serve-project-venv`, `feat/uv-support`, `docs/restructure`.
 3. Keep the change small and focused. One PR, one purpose.
-4. Run the smoke test.
+4. Run the test suite (`uv run pytest`).
 5. Commit with Conventional Commits style messages, e.g. `fix: ...`, `feat: ...`, `docs: ...`.
 6. Open a PR to `main`. Put `Closes #<number>` in the description so the issue closes automatically when the PR is merged.
 7. In the PR description, write what changed, how it was verified, and what was **not** verified.
@@ -112,7 +111,7 @@ If `ProjectContext` (`core/plugin_engine.py`) needs framework-specific behavior,
 ## 7. Commit and PR rules
 
 * The commit author is you. Do not add `Co-Authored-By` lines for tools or people who did not take part in writing the commit.
-* Do not commit build output folders: `build/`, `dist/`, `*.egg-info/` (already in `.gitignore`), or `uv.lock` if it was created by accident.
+* Do not commit build output folders: `build/`, `dist/`, `*.egg-info/` (already in `.gitignore`). Commit `uv.lock` when project dependencies change.
 * Merging is done by the maintainer through GitHub.
 
 ---

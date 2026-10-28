@@ -488,7 +488,7 @@ Framework baru cukup menambah module. Status: **Sebagian.** Framework baru ditam
 
 ## Testability
 
-Setiap framework dapat diuji secara independen. Status: **Sebagian.** Ada self-check `tests/smoke_test.py` (tanpa framework test). Tidak ada CI.
+Setiap framework dapat diuji secara independen. Status: **Terimplementasi.** Test suite modular berbasis pytest di `tests/` (`uv run pytest`) dengan multi-OS CI.
 
 ---
 

@@ -24,3 +24,10 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 pyartisan = ["templates/plugin_init/**/*"]
+
+[dependency-groups]
+dev = ["pytest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

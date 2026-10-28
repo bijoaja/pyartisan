@@ -46,7 +46,7 @@ src/pyartisan/
 ├── shared/           # logika doctor
 ├── utils/            # console, fs, naming
 └── templates/plugin_init/   # skeleton untuk `plugin init`
-tests/smoke_test.py   # satu-satunya test
+tests/                # test suite modular berbasis pytest (unit/ dan cli/)
 docs/                 # dokumentasi (id/ dan en/); docs/superpowers/ berisi spec dan plan
 ```
 
@@ -56,23 +56,22 @@ Prinsip: `cli/` hanya mem-parse argumen lalu memanggil fungsi di `core/engine.py
 
 ## 3. Menjalankan test
 
-Tidak ada framework test. Satu-satunya pemeriksaan adalah `tests/smoke_test.py` (assert biasa). Dari root repo:
+Pengujian menggunakan pytest dan dijalankan lewat `uv`:
 
 ```bash
-PYTHONPATH=src uv run --no-project --with click --with jinja2 --with pyyaml --with flask --with sqlalchemy python tests/smoke_test.py
+uv run pytest
 ```
 
-Jika `python` sudah ada di venv Anda yang berisi dependency project, cukup:
+Untuk menjalankan sebagian test:
 
 ```bash
-PYTHONPATH=src python tests/smoke_test.py
+uv run pytest tests/unit/
+uv run pytest tests/cli/test_make.py
 ```
 
-Keluaran yang benar berakhir dengan `ALL SMOKE TESTS PASSED`. Perintah pertama tidak meninggalkan file di repo; jangan memakai `uv run --with-editable .` karena itu membuat `uv.lock` yang tak terlacak.
+CI berjalan di GitHub Actions pada pull request dan push ke `main` di Ubuntu, Windows, dan macOS dengan Python 3.10 dan 3.14.
 
-Tidak ada CI, linter, atau formatter. Sebelum membuka PR, jalankan smoke test dan, bila perubahan Anda menyentuh perilaku CLI, jalankan perintahnya sendiri secara manual.
-
-Setiap perubahan logika non-trivial sebaiknya menambah satu fungsi `test_...` di `tests/smoke_test.py` dan mendaftarkannya di `main()`.
+Setiap perubahan logika non-trivial sebaiknya menambah test case di bawah `tests/unit/` atau `tests/cli/`.
 
 ---
 
@@ -81,7 +80,7 @@ Setiap perubahan logika non-trivial sebaiknya menambah satu fungsi `test_...` di
 1. Cari atau buka issue yang menjelaskan masalahnya.
 2. Buat branch dari `main`, mis. `fix/serve-project-venv`, `feat/uv-support`, `docs/restructure`.
 3. Buat perubahan kecil dan terfokus. Satu PR satu tujuan.
-4. Jalankan smoke test.
+4. Jalankan test suite (`uv run pytest`).
 5. Commit dengan pesan bergaya Conventional Commits, mis. `fix: ...`, `feat: ...`, `docs: ...`.
 6. Buka PR ke `main`. Cantumkan `Closes #<nomor>` di deskripsi supaya issue tertutup otomatis saat PR di-merge.
 7. Di deskripsi PR, tulis apa yang diubah, bagaimana diverifikasi, dan apa yang **belum** diverifikasi.
@@ -112,7 +111,7 @@ Jika `ProjectContext` (`core/plugin_engine.py`) perlu perilaku khusus framework,
 ## 7. Aturan commit dan PR
 
 * Author commit adalah Anda sendiri. Jangan menambahkan baris `Co-Authored-By` untuk alat atau orang yang tidak ikut menulis commit.
-* Jangan commit folder hasil build: `build/`, `dist/`, `*.egg-info/` (sudah di `.gitignore`), maupun `uv.lock` bila tidak sengaja dibuat.
+* Jangan commit folder hasil build: `build/`, `dist/`, `*.egg-info/` (sudah di `.gitignore`). Commit `uv.lock` bila dependensi project berubah.
 * Merge dilakukan oleh maintainer lewat GitHub.
 
 ---
