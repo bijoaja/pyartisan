@@ -54,6 +54,27 @@ def _detect_install_plan(
     return None
 
 
+def _template_meta(manifest_path: Path, default_name: str, default_version: str) -> tuple[str, str]:
+    if not manifest_path.exists():
+        return default_name, default_version
+    try:
+        with open(manifest_path, encoding="utf-8") as f:
+            m_data = yaml.safe_load(f)
+        if not isinstance(m_data, dict):
+            click.echo(
+                f"⚠ Could not read template manifest: expected mapping, got {type(m_data).__name__}. Using defaults."
+            )
+            return default_name, default_version
+        tid = m_data.get("id")
+        tver = m_data.get("version")
+        template_name = str(tid) if tid is not None else default_name
+        template_version = str(tver) if tver is not None else default_version
+        return template_name, template_version
+    except (OSError, yaml.YAMLError) as e:
+        click.echo(f"⚠ Could not read template manifest: {e}. Using defaults.")
+        return default_name, default_version
+
+
 def dispatch_new(framework: str, project_name: str) -> None:
     """Initialize a new project by cloning the framework template."""
     validate_name(project_name, "project name")
@@ -97,16 +118,7 @@ def dispatch_new(framework: str, project_name: str) -> None:
 
     # Generate .pyartisan/project.yaml (baca manifest.yaml di dalam template)
     manifest_path = Path(project_name) / ".pyartisan" / "manifest.yaml"
-    template_name = framework + "iq"
-    template_version = "1.0"
-    if manifest_path.exists():
-        try:
-            with open(manifest_path) as f:
-                m_data = yaml.safe_load(f)
-                template_name = m_data.get("id", template_name)
-                template_version = str(m_data.get("version", template_version))
-        except Exception:
-            pass
+    template_name, template_version = _template_meta(manifest_path, framework + "iq", "1.0")
 
     project_yaml = {
         "project": {"name": project_name},
@@ -114,7 +126,7 @@ def dispatch_new(framework: str, project_name: str) -> None:
         "template": {"name": template_name, "version": template_version},
         "plugins": [],
     }
-    with open(Path(project_name) / ".pyartisan" / "project.yaml", "w") as f:
+    with open(Path(project_name) / ".pyartisan" / "project.yaml", "w", encoding="utf-8") as f:
         yaml.dump(project_yaml, f)
 
     install_dependencies = click.confirm(
