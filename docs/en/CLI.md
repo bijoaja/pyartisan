@@ -185,40 +185,41 @@ Creates a symlink at `~/.pyartisan/plugins/myplugin/dev/` — changes to the loc
 ```bash
 pyartisan plugin install payment-midtrans --license valid-xxxxxx
 ```
-> **Still a mock.** License verification accepts any key prefixed with `valid-` without calling a Blockchain API, and no plugin is downloaded: all that is written to the registry is an empty `manifest.yaml` (version `1.0.0`).
+> **Offline stub.** License verification is an offline stub (prints `Note: license verification is an offline stub, no network check is performed.`), accepts any key prefixed with `valid-` without calling any network or blockchain API, and writes a mock `manifest.yaml` to the registry.
 
 > `install` does **not** change any project — the new plugin is simply made available in the local registry.
 
 ### 7.2 Apply — Apply to the Active Project
 
 ```bash
-pyartisan plugin apply <name>
+pyartisan plugin apply <name> [--yes]
 ```
 
 Run inside the project folder (`.pyartisan/project.yaml` must exist). The process:
-1. Runs the plugin's `before_install(project_context)` hook from `hooks.py` (if present).
-2. Adds the plugin's pip dependencies (`manifest.yaml` → `dependencies.pip`) to the project's `requirements.txt`, only if that file exists.
-3. Runs the `after_install(project_context)` hook — this is where the plugin calls the Project API (`create_service`, `register_router`, etc.).
-4. Records an `<plugin-id>@<version>` entry in the `project.yaml` `plugins` key.
-5. Records usage tracking of this plugin+version by the current project path in the global registry — the basis for `uninstall` validation.
+1. Prompts for consent before executing hooks if `hooks.py` is present (skipped with `--yes`, or for `dev` links created via `install --local`). Non-interactive sessions without `--yes` abort with exit 1.
+2. Runs the plugin's `before_install(project_context)` hook from `hooks.py` (if present).
+3. Adds the plugin's pip dependencies (`manifest.yaml` → `dependencies.pip`) to the project's `requirements.txt`, only if that file exists.
+4. Runs the `after_install(project_context)` hook — this is where the plugin calls the Project API (`create_service`, `register_router`, etc.).
+5. Records an `<plugin-id>@<version>` entry in the `project.yaml` `plugins` key.
+6. Records usage tracking of this plugin+version by the current project path in the global registry — the basis for `uninstall` validation.
 
 ### 7.3 Update — Update a Plugin in the Registry
 
 ```bash
-pyartisan plugin update <name>
+pyartisan plugin update <name> [--yes]
 ```
 
-`git pull` for all git-based versions of that plugin in the registry (the `dev` symlink is skipped, because it is already live from the local source). If the plugin is used by the active project, it is automatically re-`apply`-ed after the update.
+`git pull` for all git-based versions of that plugin in the registry (the `dev` symlink is skipped, because it is already live from the local source). If the plugin is used by the active project, it is automatically re-`apply`-ed after the update, forwarding `--yes` if provided.
 
 ### 7.4 Remove — Detach from the Project
 
 ```bash
-pyartisan plugin remove <name>            # one plugin
-pyartisan plugin remove <name1> <name2>   # several plugins at once
-pyartisan plugin remove --all             # all plugins in this project
+pyartisan plugin remove <name> [--yes]            # one plugin
+pyartisan plugin remove <name1> <name2> [--yes]   # several plugins at once
+pyartisan plugin remove --all [--yes]             # all plugins in this project
 ```
 
-Runs the `before_remove` / `after_remove` hooks (if the plugin provides them), deletes the entry from `project.yaml`, and cancels the usage tracking record. The plugin copy in the global registry is **not deleted** — other projects that still use it are unaffected.
+Prompts for consent before executing hooks (unless `--yes` is given). Runs the `before_remove` / `after_remove` hooks (if the plugin provides them), deletes the entry from `project.yaml`, and cancels the usage tracking record. The plugin copy in the global registry is **not deleted** — other projects that still use it are unaffected.
 
 ### 7.5 Uninstall — Remove from the Registry
 

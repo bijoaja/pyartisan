@@ -1,25 +1,45 @@
 import os
+import re
 from pathlib import Path
 
 import yaml
 
+from pyartisan.core.exceptions import ManifestError
 from pyartisan.core.registration import apply_registration
 from pyartisan.renderer import make_env
 from pyartisan.utils.naming import name_parts
 
 
+def requirement_name(spec: str) -> str:
+    """Extract normalized requirement package name before version/marker specifiers."""
+    raw = re.split(r"[<>=!~\[; ]", spec.strip())[0].lower()
+    return raw.replace("_", "-").replace(".", "-")
+
+
+def has_requirement(content: str, spec: str) -> bool:
+    """Return True if content has a non-comment line matching spec's normalized name."""
+    target_name = requirement_name(spec)
+    for line in content.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith("-"):
+            continue
+        if requirement_name(stripped) == target_name:
+            return True
+    return False
+
+
 def load_project_yaml(path: Path) -> dict:
-    with open(path / "project.yaml") as f:
+    with open(path / "project.yaml", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
 def load_template_yaml(path: Path) -> dict:
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
 def load_plugin_yaml(path: Path) -> dict:
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -63,27 +83,20 @@ class ProjectContext:
             "name_plural": name_plural,
         }
 
+        stub_file = Path(stub_path)
+        if not stub_file.exists():
+            raise ManifestError(f"Stub not found: {stub_path}")
+
         # Resolve path tujuan menggunakan nama module/service
         dest_rel = path_template.replace("{module}", name_lower)
         dest_path = self.project_path / dest_rel
         dest_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Temukan file stub dari plugin lokal
-        # (Selama runtime, plugins disalin ke ~/.pyartisan/plugins/)
-        # stub_path relatif terhadap root plugin
-        # project_context akan dipanggil oleh hooks.py yang tahu path plugin-nya
-        full_stub_path = Path(stub_path)
-        if not full_stub_path.is_absolute():
-            # plugin_root akan dilewatkan atau disimpulkan
-            pass
-
-        # render stub ke service
-        if Path(stub_path).exists():
-            with open(stub_path) as f:
-                template_data = f.read()
-            rendered = make_env().from_string(template_data).render(context)
-            with open(dest_path, "w") as f:
-                f.write(rendered)
+        with open(stub_file, encoding="utf-8") as f:
+            template_data = f.read()
+        rendered = make_env().from_string(template_data).render(context)
+        with open(dest_path, "w", encoding="utf-8") as f:
+            f.write(rendered)
 
     def register_router(self, name: str):
         # Dapatkan spesifikasi marker dari template.yaml
@@ -94,7 +107,7 @@ class ProjectContext:
 
         if not target_file_rel or not marker:
             # Fallback
-            target_file_rel = "app/main.py" if self.framework == "fastapi" else "app/main.py"
+            target_file_rel = "app/main.py"
             marker = "# pyartisan:routers"
 
         target_file = self.project_path / target_file_rel
@@ -124,6 +137,7 @@ class ProjectContext:
         # Tambahkan package ke requirements.txt proyek jika ada
         req_file = self.project_path / "requirements.txt"
         if req_file.exists():
-            content = req_file.read_text()
-            if package_name not in content:
-                req_file.write_text(content + f"\n{package_name}\n")
+            content = req_file.read_text(encoding="utf-8")
+            if not has_requirement(content, package_name):
+                separator = "" if content.endswith("\n") or not content else "\n"
+                req_file.write_text(content + separator + f"{package_name}\n", encoding="utf-8")

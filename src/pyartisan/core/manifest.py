@@ -17,7 +17,7 @@ def load_manifest(cwd: Path | None = None) -> dict:
         )
 
     try:
-        with open(manifest_path) as f:
+        with open(manifest_path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
     except Exception as e:
         raise ManifestError(f"Invalid manifest at {manifest_path}: {e}")

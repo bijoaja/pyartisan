@@ -48,3 +48,11 @@ def test_resolve_plugin_version_empty_dir_returns_none(tmp_path):
     empty_dir = tmp_path / "empty_plugin"
     empty_dir.mkdir()
     assert _resolve_plugin_version(empty_dir) is None
+
+
+def test_latest_version_mixed():
+    from pyartisan.marketplace.core import _latest_version
+
+    assert _latest_version(["1.0.0", "1.0.0-beta", "dev", "2.0"]) == "2.0"
+    assert _latest_version(["1.0.0-beta", "1.0.0"]) == "1.0.0"
+    assert _latest_version(["1.2.0", "1.10.0"]) == "1.10.0"

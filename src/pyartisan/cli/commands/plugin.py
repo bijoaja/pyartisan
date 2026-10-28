@@ -7,7 +7,11 @@ import click
 import yaml
 
 from pyartisan.core.exceptions import PyArtisanError
-from pyartisan.core.plugin_engine import ProjectContext, load_plugin_yaml
+from pyartisan.core.plugin_engine import (
+    ProjectContext,
+    has_requirement,
+    load_plugin_yaml,
+)
 from pyartisan.marketplace.core import (
     _all_usages,
     _check_updates,
@@ -49,6 +53,31 @@ def _remove_link(path: Path) -> None:
     )  # rmdir drops a junction, not its target
 
 
+def _confirm_hooks(plugin_id: str, version: str, plugin_dir: Path, assume_yes: bool) -> None:
+    """Prompt for consent before executing untrusted plugin hooks.
+
+    Dev links are trusted without a prompt. Non-interactive input or user
+    rejection raises ClickException.
+    """
+    hooks_file = plugin_dir / "hooks.py"
+    if not hooks_file.exists() or plugin_dir.name == "dev" or assume_yes:
+        return
+
+    prompt = (
+        f"Plugin '{plugin_id}@{version}' includes hooks ({hooks_file}) "
+        "that execute Python code with your privileges. Run hooks?"
+    )
+    try:
+        approved = click.confirm(prompt, default=False)
+    except click.Abort:
+        approved = False
+
+    if not approved:
+        raise click.ClickException(
+            "Plugin hooks were not approved. Re-run with --yes to allow them."
+        )
+
+
 def _link_dir(target: Path, link: Path) -> None:
     """Dev link to `target`. Windows without symlink privilege (WinError 1314): use a junction."""
     try:
@@ -74,8 +103,7 @@ def init_cmd(name: str):
     _valid(name, "plugin id")
     dest = Path.cwd() / name
     if dest.exists():
-        click.echo(f"❌ Directory already exists: {dest}")
-        return
+        raise click.ClickException(f"Directory already exists: {dest}")
 
     framework_choice = click.prompt(
         "Target framework?",
@@ -130,8 +158,7 @@ def install_cmd(name: str, local: str, license: str):
         _valid(name, "plugin id")
         local_path = Path(local)
         if not local_path.exists():
-            click.echo(f"❌ Local path does not exist: {local}")
-            return
+            raise click.ClickException(f"Local path does not exist: {local}")
 
         plugin_dir = safe_child(plugins_registry, name, "dev")
         plugin_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -146,10 +173,12 @@ def install_cmd(name: str, local: str, license: str):
         click.echo(f"✔ Linked local plugin {name} -> {local_path}")
     elif license:
         _valid(name, "plugin id")
+        click.echo("Note: license verification is an offline stub, no network check is performed.")
         click.echo("🔗 Verifying license credentials on Blockchain API node...")
         if not _verify_blockchain_license(name, license):
-            click.echo("❌ Invalid license key or ownership validation failed on blockchain.")
-            return
+            raise click.ClickException(
+                "Invalid license key or ownership validation failed on blockchain."
+            )
         click.echo("✔ License ownership successfully verified via Smart Contract.")
         # Mock secure download tarball premium plugin
         plugin_dir = safe_child(plugins_registry, name, "1.0.0")
@@ -160,13 +189,14 @@ def install_cmd(name: str, local: str, license: str):
             "version": "1.0.0",
             "dependencies": {"pip": ["stripe"]},
         }
-        with open(plugin_dir / "manifest.yaml", "w") as f:
+        with open(plugin_dir / "manifest.yaml", "w", encoding="utf-8") as f:
             yaml.dump(manifest_data, f)
     else:
         # Komunitas (GitHub / Git URL). Format name: github-user/repo-name
         if "/" not in name:
-            click.echo("❌ For community plugins, specify GitHub path 'github-username/repo-name'")
-            return
+            raise click.ClickException(
+                "For community plugins, specify GitHub path 'github-username/repo-name'"
+            )
 
         parts = name.split("/")
         if len(parts) != 2:
@@ -189,104 +219,126 @@ def install_cmd(name: str, local: str, license: str):
                 stderr=subprocess.DEVNULL,
             )
         except Exception as e:
-            click.echo(f"❌ Failed to clone plugin repository: {e}")
-            return
+            raise click.ClickException(f"Failed to clone plugin repository: {e}")
 
     manifest_file = plugin_dir / "manifest.yaml"
     if not manifest_file.exists():
-        click.echo("❌ Plugin is missing manifest.yaml.")
-        return
+        raise click.ClickException("Plugin is missing manifest.yaml.")
 
     plugin_manifest = load_plugin_yaml(manifest_file)
+    if not isinstance(plugin_manifest, dict):
+        raise click.ClickException("Plugin manifest.yaml is invalid or empty.")
+    if "id" not in plugin_manifest or not plugin_manifest["id"]:
+        raise click.ClickException("Plugin manifest is missing required 'id'.")
+    manifest_id = _valid(str(plugin_manifest["id"]), "manifest id")
+
     click.echo(f"📦 Plugin '{plugin_manifest.get('name', name)}' downloaded to registry.")
-    click.echo(
-        f"👉 Run `pyartisan plugin apply {plugin_manifest['id']}` inside a project to use it."
-    )
+    click.echo(f"👉 Run `pyartisan plugin apply {manifest_id}` inside a project to use it.")
 
 
 @plugin_group.command(name="apply")
 @click.argument("name")
-def apply_cmd(name: str):
+@click.option(
+    "--yes",
+    is_flag=True,
+    default=False,
+    help="Automatically approve plugin hooks without prompting",
+)
+def apply_cmd(name: str, yes: bool):
     """Apply a registry-installed plugin to the current project."""
     _valid(name, "plugin id")
     cwd = Path.cwd()
     project_yaml_file = cwd / ".pyartisan" / "project.yaml"
     if not project_yaml_file.exists():
-        click.echo("❌ Error: Not a pyartisan project. Missing .pyartisan/project.yaml.")
-        return
+        raise click.ClickException("Not a pyartisan project. Missing .pyartisan/project.yaml.")
 
     plugins_registry = _plugins_registry()
     plugin_root = safe_child(plugins_registry, name)
     if not plugin_root.exists():
-        click.echo(
-            f"❌ Plugin '{name}' not found in registry. Run `pyartisan plugin install {name}` first."
+        raise click.ClickException(
+            f"Plugin '{name}' not found in registry. Run `pyartisan plugin install {name}` first."
         )
-        return
 
     version = _resolve_plugin_version(plugin_root)
     if not version:
-        click.echo(f"❌ No installed version found for plugin '{name}'.")
-        return
+        raise click.ClickException(f"No installed version found for plugin '{name}'.")
 
     plugin_dir = safe_child(plugin_root, version)
     manifest_file = plugin_dir / "manifest.yaml"
     if not manifest_file.exists():
-        click.echo("❌ Plugin is missing manifest.yaml.")
-        return
+        raise click.ClickException("Plugin is missing manifest.yaml.")
 
     plugin_manifest = load_plugin_yaml(manifest_file)
+    if not isinstance(plugin_manifest, dict):
+        raise click.ClickException("Plugin manifest.yaml is invalid or empty.")
+    if "id" not in plugin_manifest or not plugin_manifest["id"]:
+        raise click.ClickException("Plugin manifest is missing required 'id'.")
+    manifest_id = _valid(str(plugin_manifest["id"]), "manifest id")
+
+    _confirm_hooks(manifest_id, version, plugin_dir, yes)
+
     project_ctx = ProjectContext(cwd)
 
     click.echo(f"📦 Applying plugin: {plugin_manifest.get('name', name)} ...")
 
-    hooks_module = _load_hooks(plugin_dir)
-    if hooks_module and hasattr(hooks_module, "before_install"):
-        click.echo("🏃 Running before_install hook...")
-        hooks_module.before_install(project_ctx)
+    try:
+        hooks_module = _load_hooks(plugin_dir)
+        if hooks_module and hasattr(hooks_module, "before_install"):
+            click.echo("🏃 Running before_install hook...")
+            hooks_module.before_install(project_ctx)
 
-    deps = plugin_manifest.get("dependencies", {})
-    if deps and "pip" in deps:
-        for pip_dep in deps["pip"]:
-            click.echo(f"➕ Adding dependency: {pip_dep}")
-            project_ctx.add_dependency(pip_dep)
+        deps = plugin_manifest.get("dependencies", {})
+        if deps and "pip" in deps:
+            for pip_dep in deps["pip"]:
+                click.echo(f"➕ Adding dependency: {pip_dep}")
+                project_ctx.add_dependency(pip_dep)
 
-    if hooks_module and hasattr(hooks_module, "after_install"):
-        click.echo("🏃 Running after_install hook...")
-        hooks_module.after_install(project_ctx)
+        if hooks_module and hasattr(hooks_module, "after_install"):
+            click.echo("🏃 Running after_install hook...")
+            hooks_module.after_install(project_ctx)
+    except Exception as e:
+        raise click.ClickException(
+            f"Plugin failed: {e}. Files already written were not rolled back."
+        ) from None
 
     project_config = project_ctx.project_config
     if "plugins" not in project_config:
         project_config["plugins"] = []
 
     plugin_version = plugin_manifest.get("version", version)
-    plugin_entry = f"{plugin_manifest['id']}@{plugin_version}"
+    plugin_entry = f"{manifest_id}@{plugin_version}"
     if plugin_entry not in project_config["plugins"]:
         project_config["plugins"].append(plugin_entry)
-        with open(project_yaml_file, "w") as f:
+        with open(project_yaml_file, "w", encoding="utf-8") as f:
             yaml.dump(project_config, f)
 
-    _record_usage(plugins_registry, plugin_manifest["id"], plugin_version, str(cwd))
+    _record_usage(plugins_registry, manifest_id, plugin_version, str(cwd))
 
     click.echo(f"🎉 Plugin '{plugin_manifest.get('name')}' successfully applied to project!")
 
 
 @plugin_group.command(name="update")
 @click.argument("name")
-def update_cmd(name: str):
+@click.option(
+    "--yes",
+    is_flag=True,
+    default=False,
+    help="Automatically approve plugin hooks without prompting",
+)
+def update_cmd(name: str, yes: bool):
     """Update a registry plugin's git sources and re-apply if used by current project."""
     _valid(name, "plugin id")
     plugins_registry = _plugins_registry()
     plugin_root = safe_child(plugins_registry, name)
     if not plugin_root.exists():
-        click.echo(f"❌ Plugin '{name}' not found in registry.")
-        return
+        raise click.ClickException(f"Plugin '{name}' not found in registry.")
 
     version_dirs = [d for d in plugin_root.iterdir() if d.is_dir()]
     if not version_dirs:
-        click.echo(f"❌ No installed version found for plugin '{name}'.")
-        return
+        raise click.ClickException(f"No installed version found for plugin '{name}'.")
 
     updated_any = False
+    has_errors = False
     for version_dir in version_dirs:
         if version_dir.name == "dev":
             click.echo("ℹ Skipping local dev link (already live from source path).")
@@ -303,10 +355,16 @@ def update_cmd(name: str):
                 updated_any = True
             except Exception as e:
                 click.echo(f"❌ Failed to update {version_dir.name}: {e}")
+                has_errors = True
 
     if not updated_any:
         click.echo("No updatable plugin sources found (only local dev links present).")
+        if has_errors:
+            raise click.exceptions.Exit(1)
         return
+
+    if has_errors:
+        raise click.exceptions.Exit(1)
 
     click.echo(f"✔ Plugin '{name}' updated in registry.")
 
@@ -317,19 +375,24 @@ def update_cmd(name: str):
         if any(p.split("@")[0] == name for p in project_config.get("plugins", [])):
             click.echo("🔄 Re-applying updated plugin to current project...")
             ctx = click.get_current_context()
-            ctx.invoke(apply_cmd, name=name)
+            ctx.invoke(apply_cmd, name=name, yes=yes)
 
 
 @plugin_group.command(name="remove")
 @click.argument("names", nargs=-1)
 @click.option("--all", "remove_all", is_flag=True, help="Remove all plugins from project")
-def remove_cmd(names, remove_all):
+@click.option(
+    "--yes",
+    is_flag=True,
+    default=False,
+    help="Automatically approve plugin hooks without prompting",
+)
+def remove_cmd(names, remove_all, yes: bool):
     """Remove plugin(s) from the current project (registry copy stays intact)."""
     cwd = Path.cwd()
     project_yaml_file = cwd / ".pyartisan" / "project.yaml"
     if not project_yaml_file.exists():
-        click.echo("❌ Error: Not a pyartisan project.")
-        return
+        raise click.ClickException("Not a pyartisan project.")
 
     project_config = load_plugin_yaml(project_yaml_file)
     installed_plugins = project_config.get("plugins", [])
@@ -344,6 +407,7 @@ def remove_cmd(names, remove_all):
         return
 
     plugins_registry = _plugins_registry()
+    has_errors = False
 
     for p in to_remove:
         plugin_id, _, version = p.partition("@")
@@ -351,9 +415,11 @@ def remove_cmd(names, remove_all):
             plugin_dir = _find_registry_dir(plugins_registry, plugin_id, version)
         except PyArtisanError:
             click.echo(f"✖ {p} (invalid plugin entry)")
+            has_errors = True
             continue
 
         if plugin_dir.exists():
+            _confirm_hooks(plugin_id, version, plugin_dir, yes)
             hooks_module = _load_hooks(plugin_dir)
             if hooks_module:
                 project_ctx = ProjectContext(cwd)
@@ -366,13 +432,19 @@ def remove_cmd(names, remove_all):
 
         if p in installed_plugins:
             installed_plugins.remove(p)
+            project_config["plugins"] = list(installed_plugins)
+            with open(project_yaml_file, "w", encoding="utf-8") as f:
+                yaml.dump(project_config, f)
             click.echo(f"✔ Removed {p} from project.")
 
         _unrecord_usage(plugins_registry, plugin_id, version, str(cwd))
 
     project_config["plugins"] = installed_plugins
-    with open(project_yaml_file, "w") as f:
+    with open(project_yaml_file, "w", encoding="utf-8") as f:
         yaml.dump(project_config, f)
+
+    if has_errors:
+        raise click.exceptions.Exit(1)
 
 
 @plugin_group.command(name="uninstall")
@@ -394,6 +466,7 @@ def uninstall_cmd(names, uninstall_all):
         click.echo("No plugins specified.")
         return
 
+    has_errors = False
     for plugin_id in target_ids:
         if plugin_id in installed:
             plugin_root = safe_child(plugins_registry, plugin_id)
@@ -402,6 +475,7 @@ def uninstall_cmd(names, uninstall_all):
             plugin_root = safe_child(plugins_registry, plugin_id)
             if not plugin_root.exists():
                 click.echo(f"⚠ Plugin '{plugin_id}' not found in registry.")
+                has_errors = True
                 continue
 
         usages = _all_usages(plugins_registry, plugin_id)
@@ -409,6 +483,7 @@ def uninstall_cmd(names, uninstall_all):
             click.echo(f"❌ Cannot uninstall '{plugin_id}'. Still used by:")
             for proj in usages:
                 click.echo(f"   - {proj}")
+            has_errors = True
             continue
 
         if _is_link(plugin_root):
@@ -419,6 +494,9 @@ def uninstall_cmd(names, uninstall_all):
                     _remove_link(child)
             shutil.rmtree(plugin_root)
         click.echo(f"✔ Uninstalled '{plugin_id}' from registry.")
+
+    if has_errors:
+        raise click.exceptions.Exit(1)
 
 
 @plugin_group.command(name="list")
@@ -455,8 +533,7 @@ def list_cmd(show_global, show_updates):
     cwd = Path.cwd()
     project_yaml_file = cwd / ".pyartisan" / "project.yaml"
     if not project_yaml_file.exists():
-        click.echo("❌ Error: Not a pyartisan project.")
-        return
+        raise click.ClickException("Not a pyartisan project.")
 
     project_config = load_plugin_yaml(project_yaml_file)
     plugins = project_config.get("plugins", [])
@@ -477,18 +554,15 @@ def info_cmd(name: str):
     plugins_registry = _plugins_registry()
     plugin_root = safe_child(plugins_registry, name)
     if not plugin_root.exists():
-        click.echo(f"❌ Plugin '{name}' not found in registry.")
-        return
+        raise click.ClickException(f"Plugin '{name}' not found in registry.")
 
     version = _resolve_plugin_version(plugin_root)
     if not version:
-        click.echo(f"❌ No installed version found for plugin '{name}'.")
-        return
+        raise click.ClickException(f"No installed version found for plugin '{name}'.")
 
     manifest_file = safe_child(plugin_root, version, "manifest.yaml")
     if not manifest_file.exists():
-        click.echo("❌ Plugin is missing manifest.yaml.")
-        return
+        raise click.ClickException("Plugin is missing manifest.yaml.")
 
     manifest = load_plugin_yaml(manifest_file)
     click.echo(f"Name         : {manifest.get('name', name)}")
@@ -513,8 +587,7 @@ def status_cmd():
     cwd = Path.cwd()
     project_yaml_file = cwd / ".pyartisan" / "project.yaml"
     if not project_yaml_file.exists():
-        click.echo("❌ Error: Not a pyartisan project.")
-        return
+        raise click.ClickException("Not a pyartisan project.")
 
     project_config = load_plugin_yaml(project_yaml_file)
     click.echo(f"Project    : {project_config.get('project', {}).get('name', '-')}")
@@ -550,8 +623,7 @@ def doctor_cmd():
     cwd = Path.cwd()
     project_yaml_file = cwd / ".pyartisan" / "project.yaml"
     if not project_yaml_file.exists():
-        click.echo("❌ Error: Not a pyartisan project.")
-        return
+        raise click.ClickException("Not a pyartisan project.")
 
     project_config = load_plugin_yaml(project_yaml_file)
     all_ok = True
@@ -595,8 +667,8 @@ def doctor_cmd():
         manifest = load_plugin_yaml(manifest_file)
         deps = manifest.get("dependencies", {}).get("pip", [])
         req_file = cwd / "requirements.txt"
-        req_content = req_file.read_text() if req_file.exists() else ""
-        missing = [d for d in deps if d not in req_content]
+        req_content = req_file.read_text(encoding="utf-8") if req_file.exists() else ""
+        missing = [d for d in deps if not has_requirement(req_content, d)]
         if missing:
             click.echo(
                 f"✖ Dependencies ({plugin_id}: missing {', '.join(missing)} in requirements.txt)"
@@ -611,11 +683,14 @@ def doctor_cmd():
         marker = marker_cfg.get("marker")
         if target_file_rel and marker:
             target_file = cwd / target_file_rel
-            if target_file.exists() and marker in target_file.read_text():
+            if target_file.exists() and marker in target_file.read_text(encoding="utf-8"):
                 click.echo("✔ Marker")
             else:
                 click.echo(f"✖ Marker ({marker} not found in {target_file_rel})")
                 all_ok = False
 
     click.echo()
-    click.echo("Plugin is valid" if all_ok else "Plugin has issues, see above.")
+    if not all_ok:
+        click.echo("Plugin has issues, see above.")
+        raise click.exceptions.Exit(1)
+    click.echo("Plugin is valid")

@@ -52,7 +52,7 @@ def test_cli_plugin_init_existing_directory(runner, in_tmp_cwd, fake_home):
     (root / "demo-plugin" / "keep-me.txt").write_text("do not touch", encoding="utf-8")
 
     result = runner.invoke(cli, ["plugin", "init", "demo-plugin"], input="all\n")
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1, result.output
     assert "already exists" in result.output.lower()
 
     assert not (root / "demo-plugin" / "manifest.yaml").exists()

@@ -127,6 +127,8 @@ environment:
 
 # hooks.py
 
+> **Catatan Keamanan:** Hook plugin mengeksekusi kode Python bebas dengan hak akses sistem pengguna. Pastikan hanya men-commit hook yang telah ditinjau keamanannya. Saat pengguna menjalankan `plugin apply`, `update`, atau `remove`, PyArtisan meminta persetujuan eksplisit sebelum menjalankan hook kecuali opsi `--yes` digunakan. Link pengembangan lokal (`plugin install --local` atau `plugin init`) dipercaya tanpa prompt konfirmasi.
+
 Hook yang dikenali:
 
 | Hook | Dipanggil |
@@ -179,7 +181,7 @@ Merender stub dengan variabel `name`, `name_lower`, `name_title`, `name_snake`, 
 * `paths.services` dari `template.yaml` bila ada, atau
 * fallback `app/services/{module}.py` (fastapi) / `app/service/{module}.py` (lainnya), dengan `{module}` = `name_lower`.
 
-> **`stub_path` relatif dihitung dari direktori kerja saat ini (root project), bukan dari root plugin.** Jika file stub tidak ditemukan, method ini **tidak menulis apa pun dan tidak menampilkan error**. Terverifikasi: `stub_path="stubs/service.py.jinja"` tidak menghasilkan file, sedangkan path absolut berhasil. Selalu pakai path absolut.
+> **`stub_path` relatif dihitung dari direktori kerja saat ini (root project), bukan dari root plugin.** Jika file stub tidak ditemukan, method ini **menimbulkan error `ManifestError`**. Selalu pakai path absolut.
 
 ## Register Router
 

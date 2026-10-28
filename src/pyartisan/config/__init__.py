@@ -65,7 +65,7 @@ def load() -> dict:
 
 def save(data: dict) -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(_dump_toml(data))
+    CONFIG_PATH.write_text(_dump_toml(data), encoding="utf-8")
 
 
 def reset() -> dict:
