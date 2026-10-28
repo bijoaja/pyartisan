@@ -1,7 +1,8 @@
-import os
-import yaml
 from pathlib import Path
-from pyartisan.core.exceptions import ManifestNotFound, ManifestError
+
+import yaml
+
+from pyartisan.core.exceptions import ManifestError, ManifestNotFound
 
 
 def load_manifest(cwd: Path | None = None) -> dict:
@@ -16,7 +17,7 @@ def load_manifest(cwd: Path | None = None) -> dict:
         )
 
     try:
-        with open(manifest_path, "r") as f:
+        with open(manifest_path) as f:
             data = yaml.safe_load(f)
     except Exception as e:
         raise ManifestError(f"Invalid manifest at {manifest_path}: {e}")

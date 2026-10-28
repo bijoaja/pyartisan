@@ -28,10 +28,7 @@ def copy_file(src: str, dst: str, skip_if_exists: bool = True) -> bool:
 
 def write_controller_init(dir_path: str, file_stem: str, class_name: str) -> None:
     """Write a simple relative-import __init__.py for a single-controller feature dir."""
-    content = (
-        f"from .{file_stem} import {class_name}\n\n"
-        f'__all__ = ["{class_name}"]\n'
-    )
+    content = f'from .{file_stem} import {class_name}\n\n__all__ = ["{class_name}"]\n'
     write_file(os.path.join(dir_path, "__init__.py"), content)
 
 
@@ -53,7 +50,7 @@ def write_service_init(dir_path: str, file_stem: str, class_name: str) -> None:
         console.success(f"created: {init_path}")
         return
 
-    with open(init_path, "r") as f:
+    with open(init_path) as f:
         content = f.read()
 
     if import_line in content:
@@ -76,7 +73,7 @@ def write_service_init(dir_path: str, file_stem: str, class_name: str) -> None:
     new_lines.insert(insert_at, import_line)
 
     if not all_updated:
-        new_lines.append(f'\n__all__ = [{all_entry}]')
+        new_lines.append(f"\n__all__ = [{all_entry}]")
 
     with open(init_path, "w") as f:
         f.write("\n".join(new_lines) + "\n")

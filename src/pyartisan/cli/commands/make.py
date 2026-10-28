@@ -1,10 +1,14 @@
 import sys
+
 import click
+
 from pyartisan.core import engine
 from pyartisan.core.exceptions import PyArtisanError
 
 
-@click.command(name="make", context_settings={"ignore_unknown_options": True, "allow_extra_args": True})
+@click.command(
+    name="make", context_settings={"ignore_unknown_options": True, "allow_extra_args": True}
+)
 @click.argument("target")
 @click.argument("name")
 @click.option("--force", is_flag=True, default=False, help="Overwrite existing files")

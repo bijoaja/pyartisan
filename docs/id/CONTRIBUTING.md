@@ -54,7 +54,7 @@ Prinsip: `cli/` hanya mem-parse argumen lalu memanggil fungsi di `core/engine.py
 
 ---
 
-## 3. Menjalankan test
+## 3. Menjalankan test dan linter
 
 Pengujian menggunakan pytest dan dijalankan lewat `uv`:
 
@@ -67,6 +67,15 @@ Untuk menjalankan sebagian test:
 ```bash
 uv run pytest tests/unit/
 uv run pytest tests/cli/test_make.py
+```
+
+Linting dan formatting menggunakan Ruff:
+
+```bash
+uv run ruff check .          # periksa lint
+uv run ruff check --fix .    # perbaiki lint otomatis
+uv run ruff format --check . # periksa formatting
+uv run ruff format .         # format kode otomatis
 ```
 
 CI berjalan di GitHub Actions pada pull request dan push ke `main` di Ubuntu, Windows, dan macOS dengan Python 3.10 dan 3.14.

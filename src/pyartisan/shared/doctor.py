@@ -32,11 +32,17 @@ def _check_pip() -> tuple[bool, str]:
     try:
         out = subprocess.run(
             [sys.executable, "-m", "pip", "--version"],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         )
         return True, out.stdout.strip()
     except Exception as e:
-        return (True, "pip missing in this env (uv available)") if uv else (False, f"pip check failed: {e}")
+        return (
+            (True, "pip missing in this env (uv available)")
+            if uv
+            else (False, f"pip check failed: {e}")
+        )
 
 
 def _check_git() -> tuple[bool, str]:

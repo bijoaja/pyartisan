@@ -1,5 +1,7 @@
 import sys
+
 import click
+
 from pyartisan.shared.doctor import run_checks
 
 

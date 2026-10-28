@@ -54,7 +54,7 @@ Principle: `cli/` only parses arguments and calls functions in `core/engine.py`.
 
 ---
 
-## 3. Running the tests
+## 3. Running tests and linters
 
 Tests use pytest and are run via `uv`:
 
@@ -67,6 +67,15 @@ To run a subset of tests:
 ```bash
 uv run pytest tests/unit/
 uv run pytest tests/cli/test_make.py
+```
+
+Linting and formatting use Ruff:
+
+```bash
+uv run ruff check .          # check lint
+uv run ruff check --fix .    # autofix lint issues
+uv run ruff format --check . # check formatting
+uv run ruff format .         # format code
 ```
 
 CI runs on GitHub Actions on pull requests and pushes to `main` across Ubuntu, Windows, and macOS on Python 3.10 and 3.14.

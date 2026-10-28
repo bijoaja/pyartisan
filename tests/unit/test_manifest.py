@@ -1,5 +1,6 @@
 import pytest
-from pyartisan.core.exceptions import ManifestNotFound, ManifestError
+
+from pyartisan.core.exceptions import ManifestError, ManifestNotFound
 from pyartisan.core.manifest import load_manifest
 
 

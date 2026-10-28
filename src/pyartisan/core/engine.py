@@ -4,15 +4,16 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-import click
 
-from pyartisan.core.manifest import load_manifest
-from pyartisan.core.exceptions import GeneratorNotSupported, TemplateNotFound, ManifestError
-from pyartisan.renderer import render_stub
-from pyartisan.core.registration import apply_registration
-from pyartisan.utils.naming import name_parts
-from pyartisan import config as config_module
+import click
 import yaml
+
+from pyartisan import config as config_module
+from pyartisan.core.exceptions import GeneratorNotSupported, ManifestError, TemplateNotFound
+from pyartisan.core.manifest import load_manifest
+from pyartisan.core.registration import apply_registration
+from pyartisan.renderer import render_stub
+from pyartisan.utils.naming import name_parts
 
 
 def _venv_cmd(uv: str | None) -> list[str]:
@@ -25,7 +26,9 @@ def _install_cmd(uv: str | None, venv_python: str, req_file: str) -> list[str]:
     return [venv_python, "-m", "pip", "install", "-r", req_file]
 
 
-def _detect_install_plan(cwd: Path, uv: str | None, venv_python: str) -> tuple[str, list[str]] | None:
+def _detect_install_plan(
+    cwd: Path, uv: str | None, venv_python: str
+) -> tuple[str, list[str]] | None:
     """Return (description, command) for installing project dependencies, or None."""
     pyproject = cwd / "pyproject.toml"
     req_file = cwd / "requirements.txt"
@@ -33,10 +36,19 @@ def _detect_install_plan(cwd: Path, uv: str | None, venv_python: str) -> tuple[s
     if pyproject.exists():
         if uv:
             return "dependencies via uv sync", [uv, "sync"]
-        return "project dependencies via pip (pyproject.toml)", [venv_python, "-m", "pip", "install", "-e", "."]
+        return "project dependencies via pip (pyproject.toml)", [
+            venv_python,
+            "-m",
+            "pip",
+            "install",
+            "-e",
+            ".",
+        ]
 
     if req_file.exists():
-        return "dependencies from requirements.txt", _install_cmd(uv, venv_python, str(req_file.name))
+        return "dependencies from requirements.txt", _install_cmd(
+            uv, venv_python, str(req_file.name)
+        )
 
     return None
 
@@ -44,10 +56,13 @@ def _detect_install_plan(cwd: Path, uv: str | None, venv_python: str) -> tuple[s
 def dispatch_new(framework: str, project_name: str) -> None:
     """Initialize a new project by cloning the framework template."""
     config_data = config_module.load()
-    templates = config_data.get("templates", {
-        "flask": "https://github.com/bijoaja/flaskiq.git",
-        "fastapi": "https://github.com/bijoaja/fastiq.git",
-    })
+    templates = config_data.get(
+        "templates",
+        {
+            "flask": "https://github.com/bijoaja/flaskiq.git",
+            "fastapi": "https://github.com/bijoaja/fastiq.git",
+        },
+    )
 
     if framework not in templates:
         raise TemplateNotFound(
@@ -64,9 +79,7 @@ def dispatch_new(framework: str, project_name: str) -> None:
     click.echo(f"⬇ Cloning {framework} template repository ...")
     try:
         result = subprocess.run(
-            ["git", "clone", repo_url, project_name],
-            capture_output=True,
-            text=True
+            ["git", "clone", repo_url, project_name], capture_output=True, text=True
         )
         if result.returncode != 0:
             click.echo("❌ Failed to clone project!")
@@ -85,7 +98,7 @@ def dispatch_new(framework: str, project_name: str) -> None:
     template_version = "1.0"
     if manifest_path.exists():
         try:
-            with open(manifest_path, "r") as f:
+            with open(manifest_path) as f:
                 m_data = yaml.safe_load(f)
                 template_name = m_data.get("id", template_name)
                 template_version = str(m_data.get("version", template_version))
@@ -95,11 +108,8 @@ def dispatch_new(framework: str, project_name: str) -> None:
     project_yaml = {
         "project": {"name": project_name},
         "framework": {"name": framework},
-        "template": {
-            "name": template_name,
-            "version": template_version
-        },
-        "plugins": []
+        "template": {"name": template_name, "version": template_version},
+        "plugins": [],
     }
     with open(Path(project_name) / ".pyartisan" / "project.yaml", "w") as f:
         yaml.dump(project_yaml, f)
@@ -124,7 +134,9 @@ def dispatch_new(framework: str, project_name: str) -> None:
     venv_python = "venv\\Scripts\\python.exe" if os.name == "nt" else "venv/bin/python"
     plan = _detect_install_plan(Path.cwd(), uv, venv_python)
     if not plan:
-        click.echo("⚠ No pyproject.toml or requirements.txt found, skipping dependency installation.")
+        click.echo(
+            "⚠ No pyproject.toml or requirements.txt found, skipping dependency installation."
+        )
         return
 
     desc, cmd = plan
@@ -152,8 +164,7 @@ def dispatch_make(target: str, name: str, force: bool = False, **extra_options) 
     if "generators" not in manifest or target not in manifest["generators"]:
         avail = ", ".join(manifest.get("generators", {}).keys())
         raise GeneratorNotSupported(
-            f"'{manifest['id']}' does not support generator '{target}'. "
-            f"Available: {avail}"
+            f"'{manifest['id']}' does not support generator '{target}'. Available: {avail}"
         )
 
     gen_config = manifest["generators"][target]
@@ -161,13 +172,17 @@ def dispatch_make(target: str, name: str, force: bool = False, **extra_options) 
     path_key = gen_config.get("path")
 
     if not stub_rel or not path_key:
-        raise ManifestError(f"Generator '{target}' configuration must specify 'stub' and 'path' keys.")
+        raise ManifestError(
+            f"Generator '{target}' configuration must specify 'stub' and 'path' keys."
+        )
 
     stub_dir = cwd / ".pyartisan" / stub_rel
 
     dest_path_rel = manifest.get("paths", {}).get(path_key)
     if not dest_path_rel:
-        raise ManifestError(f"Path key '{path_key}' (used by '{target}') is not defined in manifest 'paths'.")
+        raise ManifestError(
+            f"Path key '{path_key}' (used by '{target}') is not defined in manifest 'paths'."
+        )
 
     dest_dir = cwd / dest_path_rel
 
@@ -181,11 +196,12 @@ def dispatch_make(target: str, name: str, force: bool = False, **extra_options) 
         "name_plural": name_plural,
         "type": extra_options.get("type", "view"),
         "version": extra_options.get("version", "1"),
-        **extra_options
+        **extra_options,
     }
 
     # Evaluate dynamic stub_subpath if defined
     from jinja2 import Environment
+
     if "stub_subpath" in gen_config:
         subpath_template = gen_config["stub_subpath"]
         rendered_subpath = Environment().from_string(subpath_template).render(context)
@@ -215,11 +231,13 @@ def dispatch_make(target: str, name: str, force: bool = False, **extra_options) 
             target_template = reg.get("target")
 
             if not reg_type or not target_template:
-                raise ManifestError(f"Registration configuration for '{target}' is missing 'type' or 'target'.")
+                raise ManifestError(
+                    f"Registration configuration for '{target}' is missing 'type' or 'target'."
+                )
 
             # Render target path
-            target_file_rel = Environment().from_string(target_template).render(
-                path=dest_path_rel, **context
+            target_file_rel = (
+                Environment().from_string(target_template).render(path=dest_path_rel, **context)
             )
             target_file = cwd / target_file_rel
 
@@ -228,7 +246,7 @@ def dispatch_make(target: str, name: str, force: bool = False, **extra_options) 
                 target_file=target_file,
                 context=context,
                 marker=reg.get("marker"),
-                line_template=reg.get("line")
+                line_template=reg.get("line"),
             )
 
     click.echo(f"Done. '{name_title}' scaffolded successfully.")
@@ -237,10 +255,7 @@ def dispatch_make(target: str, name: str, force: bool = False, **extra_options) 
 def _docker_available() -> bool:
     try:
         subprocess.run(
-            ["docker", "info"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=True
+            ["docker", "info"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True
         )
         return True
     except Exception:
@@ -271,7 +286,11 @@ def _venv_command(venv: Path, argv: list[str]) -> tuple[list[str], dict]:
     """Run argv inside venv. PATH alone is not trusted: on Windows `python3` does not exist in a
     venv and a PATH entry does not override the caller's own Python, so resolve argv[0] explicitly."""
     bin_dir = str(_venv_bin(venv))
-    env = {**os.environ, "VIRTUAL_ENV": str(venv), "PATH": bin_dir + os.pathsep + os.environ.get("PATH", "")}
+    env = {
+        **os.environ,
+        "VIRTUAL_ENV": str(venv),
+        "PATH": bin_dir + os.pathsep + os.environ.get("PATH", ""),
+    }
     env.pop("PYTHONHOME", None)
     if argv[0] in ("python", "python3"):
         argv = [str(_venv_python(venv)), *argv[1:]]
@@ -291,7 +310,12 @@ def dispatch_serve() -> None:
         try:
             cmd = ["docker", "compose", "up"]
             try:
-                subprocess.run(["docker", "compose", "version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+                subprocess.run(
+                    ["docker", "compose", "version"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=True,
+                )
             except Exception:
                 cmd = ["docker-compose", "up"]
             subprocess.run(cmd)
@@ -320,7 +344,9 @@ def dispatch_serve() -> None:
     click.echo("  To resolve:")
     click.echo("    - Make sure Docker is running and run `pyartisan make docker` if needed.")
     if serve_script:
-        click.echo("    - Create the project venv (./venv or ./.venv), e.g. `uv venv venv` and install requirements.")
+        click.echo(
+            "    - Create the project venv (./venv or ./.venv), e.g. `uv venv venv` and install requirements."
+        )
     sys.exit(1)
 
 

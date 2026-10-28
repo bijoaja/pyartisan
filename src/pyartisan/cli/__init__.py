@@ -4,21 +4,24 @@ import click
 
 from pyartisan import __version__
 from pyartisan.cli.commands import (
-    new_cmd,
-    make_cmd,
-    serve_cmd,
     build_cmd,
     config_group,
     doctor_cmd,
-    version_cmd,
+    make_cmd,
+    new_cmd,
     plugin_group,
+    serve_cmd,
+    version_cmd,
 )
 
 
 def _force_utf8(*streams) -> None:
     """Output uses symbols like ✔ and ❌; legacy Windows codepages (cp1252) crash on them."""
     for s in streams or (sys.stdout, sys.stderr):
-        if s is not None and (getattr(s, "encoding", None) or "").lower().replace("-", "") != "utf8":
+        if (
+            s is not None
+            and (getattr(s, "encoding", None) or "").lower().replace("-", "") != "utf8"
+        ):
             try:
                 s.reconfigure(encoding="utf-8")
             except (AttributeError, ValueError):

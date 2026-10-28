@@ -1,9 +1,10 @@
 import yaml
+
 from pyartisan.core.plugin_engine import (
+    ProjectContext,
+    load_plugin_yaml,
     load_project_yaml,
     load_template_yaml,
-    load_plugin_yaml,
-    ProjectContext,
 )
 
 

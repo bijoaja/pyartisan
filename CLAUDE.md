@@ -21,6 +21,14 @@ Jalankan test suite berbasis pytest:
 uv run pytest
 ```
 
+Jalankan linting dan formatting berbasis Ruff:
+```bash
+uv run ruff check .          # periksa lint
+uv run ruff check --fix .    # perbaiki lint otomatis
+uv run ruff format --check . # periksa formatting
+uv run ruff format .         # format kode otomatis
+```
+
 Cover: `name_parts`, `load_manifest`, `render_stub`, registrasi (`import_list`, `marker`), `config` load/save/reset, `make` generik (termasuk target tidak dikenal dan tanpa manifest), `ProjectContext`, seluruh siklus `plugin` (`init`, `install`, `apply`, `remove`, `uninstall`, `list`, `info`, `status`, `doctor`), pemilihan installer uv vs pip, pemaksaan UTF-8, dan pemilihan venv project untuk `serve`.
 
 ## Arsitektur Codebase
