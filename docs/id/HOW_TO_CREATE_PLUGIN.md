@@ -127,6 +127,8 @@ environment:
 
 # hooks.py
 
+> **Catatan Keamanan:** Hook plugin mengeksekusi kode Python bebas dengan hak akses sistem pengguna. Pastikan hanya men-commit hook yang telah ditinjau keamanannya. Saat pengguna menjalankan `plugin apply`, `update`, atau `remove`, PyArtisan meminta persetujuan eksplisit sebelum menjalankan hook kecuali opsi `--yes` digunakan. Link pengembangan lokal (`plugin install --local` atau `plugin init`) dipercaya tanpa prompt konfirmasi.
+
 Hook yang dikenali:
 
 | Hook | Dipanggil |

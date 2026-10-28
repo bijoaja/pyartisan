@@ -49,6 +49,31 @@ def _remove_link(path: Path) -> None:
     )  # rmdir drops a junction, not its target
 
 
+def _confirm_hooks(plugin_id: str, version: str, plugin_dir: Path, assume_yes: bool) -> None:
+    """Prompt for consent before executing untrusted plugin hooks.
+
+    Dev links are trusted without a prompt. Non-interactive input or user
+    rejection raises ClickException.
+    """
+    hooks_file = plugin_dir / "hooks.py"
+    if not hooks_file.exists() or plugin_dir.name == "dev" or assume_yes:
+        return
+
+    prompt = (
+        f"Plugin '{plugin_id}@{version}' includes hooks ({hooks_file}) "
+        "that execute Python code with your privileges. Run hooks?"
+    )
+    try:
+        approved = click.confirm(prompt, default=False)
+    except click.Abort:
+        approved = False
+
+    if not approved:
+        raise click.ClickException(
+            "Plugin hooks were not approved. Re-run with --yes to allow them."
+        )
+
+
 def _link_dir(target: Path, link: Path) -> None:
     """Dev link to `target`. Windows without symlink privilege (WinError 1314): use a junction."""
     try:
@@ -198,15 +223,25 @@ def install_cmd(name: str, local: str, license: str):
         return
 
     plugin_manifest = load_plugin_yaml(manifest_file)
+    if not isinstance(plugin_manifest, dict):
+        raise click.ClickException("Plugin manifest.yaml is invalid or empty.")
+    if "id" not in plugin_manifest or not plugin_manifest["id"]:
+        raise click.ClickException("Plugin manifest is missing required 'id'.")
+    manifest_id = _valid(str(plugin_manifest["id"]), "manifest id")
+
     click.echo(f"📦 Plugin '{plugin_manifest.get('name', name)}' downloaded to registry.")
-    click.echo(
-        f"👉 Run `pyartisan plugin apply {plugin_manifest['id']}` inside a project to use it."
-    )
+    click.echo(f"👉 Run `pyartisan plugin apply {manifest_id}` inside a project to use it.")
 
 
 @plugin_group.command(name="apply")
 @click.argument("name")
-def apply_cmd(name: str):
+@click.option(
+    "--yes",
+    is_flag=True,
+    default=False,
+    help="Automatically approve plugin hooks without prompting",
+)
+def apply_cmd(name: str, yes: bool):
     """Apply a registry-installed plugin to the current project."""
     _valid(name, "plugin id")
     cwd = Path.cwd()
@@ -235,44 +270,63 @@ def apply_cmd(name: str):
         return
 
     plugin_manifest = load_plugin_yaml(manifest_file)
+    if not isinstance(plugin_manifest, dict):
+        raise click.ClickException("Plugin manifest.yaml is invalid or empty.")
+    if "id" not in plugin_manifest or not plugin_manifest["id"]:
+        raise click.ClickException("Plugin manifest is missing required 'id'.")
+    manifest_id = _valid(str(plugin_manifest["id"]), "manifest id")
+
+    _confirm_hooks(manifest_id, version, plugin_dir, yes)
+
     project_ctx = ProjectContext(cwd)
 
     click.echo(f"📦 Applying plugin: {plugin_manifest.get('name', name)} ...")
 
-    hooks_module = _load_hooks(plugin_dir)
-    if hooks_module and hasattr(hooks_module, "before_install"):
-        click.echo("🏃 Running before_install hook...")
-        hooks_module.before_install(project_ctx)
+    try:
+        hooks_module = _load_hooks(plugin_dir)
+        if hooks_module and hasattr(hooks_module, "before_install"):
+            click.echo("🏃 Running before_install hook...")
+            hooks_module.before_install(project_ctx)
 
-    deps = plugin_manifest.get("dependencies", {})
-    if deps and "pip" in deps:
-        for pip_dep in deps["pip"]:
-            click.echo(f"➕ Adding dependency: {pip_dep}")
-            project_ctx.add_dependency(pip_dep)
+        deps = plugin_manifest.get("dependencies", {})
+        if deps and "pip" in deps:
+            for pip_dep in deps["pip"]:
+                click.echo(f"➕ Adding dependency: {pip_dep}")
+                project_ctx.add_dependency(pip_dep)
 
-    if hooks_module and hasattr(hooks_module, "after_install"):
-        click.echo("🏃 Running after_install hook...")
-        hooks_module.after_install(project_ctx)
+        if hooks_module and hasattr(hooks_module, "after_install"):
+            click.echo("🏃 Running after_install hook...")
+            hooks_module.after_install(project_ctx)
+    except Exception as e:
+        raise click.ClickException(
+            f"Plugin failed: {e}. Files already written were not rolled back."
+        ) from None
 
     project_config = project_ctx.project_config
     if "plugins" not in project_config:
         project_config["plugins"] = []
 
     plugin_version = plugin_manifest.get("version", version)
-    plugin_entry = f"{plugin_manifest['id']}@{plugin_version}"
+    plugin_entry = f"{manifest_id}@{plugin_version}"
     if plugin_entry not in project_config["plugins"]:
         project_config["plugins"].append(plugin_entry)
         with open(project_yaml_file, "w") as f:
             yaml.dump(project_config, f)
 
-    _record_usage(plugins_registry, plugin_manifest["id"], plugin_version, str(cwd))
+    _record_usage(plugins_registry, manifest_id, plugin_version, str(cwd))
 
     click.echo(f"🎉 Plugin '{plugin_manifest.get('name')}' successfully applied to project!")
 
 
 @plugin_group.command(name="update")
 @click.argument("name")
-def update_cmd(name: str):
+@click.option(
+    "--yes",
+    is_flag=True,
+    default=False,
+    help="Automatically approve plugin hooks without prompting",
+)
+def update_cmd(name: str, yes: bool):
     """Update a registry plugin's git sources and re-apply if used by current project."""
     _valid(name, "plugin id")
     plugins_registry = _plugins_registry()
@@ -317,13 +371,19 @@ def update_cmd(name: str):
         if any(p.split("@")[0] == name for p in project_config.get("plugins", [])):
             click.echo("🔄 Re-applying updated plugin to current project...")
             ctx = click.get_current_context()
-            ctx.invoke(apply_cmd, name=name)
+            ctx.invoke(apply_cmd, name=name, yes=yes)
 
 
 @plugin_group.command(name="remove")
 @click.argument("names", nargs=-1)
 @click.option("--all", "remove_all", is_flag=True, help="Remove all plugins from project")
-def remove_cmd(names, remove_all):
+@click.option(
+    "--yes",
+    is_flag=True,
+    default=False,
+    help="Automatically approve plugin hooks without prompting",
+)
+def remove_cmd(names, remove_all, yes: bool):
     """Remove plugin(s) from the current project (registry copy stays intact)."""
     cwd = Path.cwd()
     project_yaml_file = cwd / ".pyartisan" / "project.yaml"
@@ -354,6 +414,7 @@ def remove_cmd(names, remove_all):
             continue
 
         if plugin_dir.exists():
+            _confirm_hooks(plugin_id, version, plugin_dir, yes)
             hooks_module = _load_hooks(plugin_dir)
             if hooks_module:
                 project_ctx = ProjectContext(cwd)
@@ -366,6 +427,9 @@ def remove_cmd(names, remove_all):
 
         if p in installed_plugins:
             installed_plugins.remove(p)
+            project_config["plugins"] = list(installed_plugins)
+            with open(project_yaml_file, "w") as f:
+                yaml.dump(project_config, f)
             click.echo(f"✔ Removed {p} from project.")
 
         _unrecord_usage(plugins_registry, plugin_id, version, str(cwd))

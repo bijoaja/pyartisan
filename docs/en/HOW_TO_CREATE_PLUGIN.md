@@ -127,6 +127,8 @@ environment:
 
 # hooks.py
 
+> **Security Note:** Plugin hooks execute arbitrary Python code with the user's system privileges. Commit only reviewed hooks. When users run `plugin apply`, `update`, or `remove`, PyArtisan prompts for explicit consent before running hooks unless `--yes` is passed. Local development links (`plugin install --local` or `plugin init`) are trusted without prompting.
+
 Recognized hooks:
 
 | Hook | Called |

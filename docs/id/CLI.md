@@ -192,33 +192,34 @@ pyartisan plugin install payment-midtrans --license valid-xxxxxx
 ### 7.2 Apply — Terapkan ke Project Aktif
 
 ```bash
-pyartisan plugin apply <name>
+pyartisan plugin apply <name> [--yes]
 ```
 
 Dijalankan di dalam folder project (harus ada `.pyartisan/project.yaml`). Prosesnya:
-1. Menjalankan hook `before_install(project_context)` dari `hooks.py` plugin (jika ada).
-2. Menambahkan dependency pip plugin (`manifest.yaml` → `dependencies.pip`) ke `requirements.txt` project, hanya jika file itu ada.
-3. Menjalankan hook `after_install(project_context)` — di sinilah plugin memanggil Project API (`create_service`, `register_router`, dll).
-4. Mencatat entri `<plugin-id>@<version>` ke `project.yaml` key `plugins`.
-5. Mencatat penggunaan (usage tracking) plugin+versi ini oleh path project saat ini di registry global — dasar validasi `uninstall`.
+1. Meminta persetujuan pengguna sebelum mengeksekusi hook jika `hooks.py` ada (dilewati dengan `--yes`, atau untuk link `dev` via `install --local`). Sesi non-interaktif tanpa `--yes` dibatalkan dengan exit 1.
+2. Menjalankan hook `before_install(project_context)` dari `hooks.py` plugin (jika ada).
+3. Menambahkan dependency pip plugin (`manifest.yaml` → `dependencies.pip`) ke `requirements.txt` project, hanya jika file itu ada.
+4. Menjalankan hook `after_install(project_context)` — di sinilah plugin memanggil Project API (`create_service`, `register_router`, dll).
+5. Mencatat entri `<plugin-id>@<version>` ke `project.yaml` key `plugins`.
+6. Mencatat penggunaan (usage tracking) plugin+versi ini oleh path project saat ini di registry global — dasar validasi `uninstall`.
 
 ### 7.3 Update — Perbarui Plugin di Registry
 
 ```bash
-pyartisan plugin update <name>
+pyartisan plugin update <name> [--yes]
 ```
 
-`git pull` semua versi git-based plugin tersebut di registry (symlink `dev` dilewati, karena sudah live dari source lokal). Jika plugin sedang dipakai project aktif, otomatis re-`apply` setelah update.
+`git pull` semua versi git-based plugin tersebut di registry (symlink `dev` dilewati, karena sudah live dari source lokal). Jika plugin sedang dipakai project aktif, otomatis re-`apply` setelah update dengan meneruskan flag `--yes` jika ada.
 
 ### 7.4 Remove — Cabut dari Project
 
 ```bash
-pyartisan plugin remove <name>            # satu plugin
-pyartisan plugin remove <name1> <name2>   # banyak plugin sekaligus
-pyartisan plugin remove --all             # semua plugin di project ini
+pyartisan plugin remove <name> [--yes]            # satu plugin
+pyartisan plugin remove <name1> <name2> [--yes]   # banyak plugin sekaligus
+pyartisan plugin remove --all [--yes]             # semua plugin di project ini
 ```
 
-Menjalankan hook `before_remove` / `after_remove` (jika plugin menyediakannya), menghapus entri dari `project.yaml`, dan membatalkan pencatatan usage tracking. Salinan plugin di registry global **tidak dihapus** — project lain yang masih memakainya tidak terpengaruh.
+Meminta persetujuan pengguna sebelum mengeksekusi hook (kecuali opsi `--yes` diberikan). Menjalankan hook `before_remove` / `after_remove` (jika plugin menyediakannya), menghapus entri dari `project.yaml`, dan membatalkan pencatatan usage tracking. Salinan plugin di registry global **tidak dihapus** — project lain yang masih memakainya tidak terpengaruh.
 
 ### 7.5 Uninstall — Hapus dari Registry
 
