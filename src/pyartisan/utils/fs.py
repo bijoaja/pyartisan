@@ -10,7 +10,7 @@ def write_file(path: str, content: str, overwrite: bool = False) -> None:
         console.warn(f"skipped (already exists): {path}")
         return
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write(content)
     console.success(f"created: {path}")
 
@@ -45,12 +45,12 @@ def write_service_init(dir_path: str, file_stem: str, class_name: str) -> None:
     all_entry = f'"{class_name}"'
 
     if not os.path.exists(init_path):
-        with open(init_path, "w") as f:
+        with open(init_path, "w", encoding="utf-8") as f:
             f.write(f"{import_line}\n\n__all__ = [{all_entry}]\n")
         console.success(f"created: {init_path}")
         return
 
-    with open(init_path) as f:
+    with open(init_path, encoding="utf-8") as f:
         content = f.read()
 
     if import_line in content:
@@ -75,7 +75,7 @@ def write_service_init(dir_path: str, file_stem: str, class_name: str) -> None:
     if not all_updated:
         new_lines.append(f"\n__all__ = [{all_entry}]")
 
-    with open(init_path, "w") as f:
+    with open(init_path, "w", encoding="utf-8") as f:
         f.write("\n".join(new_lines) + "\n")
 
     console.success(f"updated: {init_path}")

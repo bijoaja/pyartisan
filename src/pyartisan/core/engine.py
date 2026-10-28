@@ -136,18 +136,17 @@ def dispatch_new(framework: str, project_name: str) -> None:
         click.echo("⚠ Skipping virtual environment and dependency installation.")
         return
 
-    os.chdir(project_name)
     uv = shutil.which("uv")
     click.echo(f"⚙ Creating virtual environment (venv{' via uv' if uv else ''})...")
     try:
-        subprocess.run(_venv_cmd(uv), check=True)
+        subprocess.run(_venv_cmd(uv), cwd=project_name, check=True)
         click.echo("✔ Virtual environment created successfully.")
     except Exception as e:
         click.echo(f"❌ Failed to create venv: {e}")
         sys.exit(1)
 
     venv_python = "venv\\Scripts\\python.exe" if os.name == "nt" else "venv/bin/python"
-    plan = _detect_install_plan(Path.cwd(), uv, venv_python)
+    plan = _detect_install_plan(Path(project_name), uv, venv_python)
     if not plan:
         click.echo(
             "⚠ No pyproject.toml or requirements.txt found, skipping dependency installation."
@@ -157,7 +156,7 @@ def dispatch_new(framework: str, project_name: str) -> None:
     desc, cmd = plan
     click.echo(f"📦 Installing {desc} ...")
     try:
-        subprocess.run(cmd, check=True)
+        subprocess.run(cmd, cwd=project_name, check=True)
         click.echo("✔ Dependencies installed successfully.")
     except Exception as e:
         click.echo(f"❌ Failed to install dependencies: {e}")

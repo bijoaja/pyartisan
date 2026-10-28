@@ -175,6 +175,7 @@ def install_cmd(name: str, local: str, license: str):
         click.echo(f"✔ Linked local plugin {name} -> {local_path}")
     elif license:
         _valid(name, "plugin id")
+        click.echo("Note: license verification is an offline stub, no network check is performed.")
         click.echo("🔗 Verifying license credentials on Blockchain API node...")
         if not _verify_blockchain_license(name, license):
             click.echo("❌ Invalid license key or ownership validation failed on blockchain.")
@@ -189,7 +190,7 @@ def install_cmd(name: str, local: str, license: str):
             "version": "1.0.0",
             "dependencies": {"pip": ["stripe"]},
         }
-        with open(plugin_dir / "manifest.yaml", "w") as f:
+        with open(plugin_dir / "manifest.yaml", "w", encoding="utf-8") as f:
             yaml.dump(manifest_data, f)
     else:
         # Komunitas (GitHub / Git URL). Format name: github-user/repo-name
@@ -314,7 +315,7 @@ def apply_cmd(name: str, yes: bool):
     plugin_entry = f"{manifest_id}@{plugin_version}"
     if plugin_entry not in project_config["plugins"]:
         project_config["plugins"].append(plugin_entry)
-        with open(project_yaml_file, "w") as f:
+        with open(project_yaml_file, "w", encoding="utf-8") as f:
             yaml.dump(project_config, f)
 
     _record_usage(plugins_registry, manifest_id, plugin_version, str(cwd))
@@ -432,14 +433,14 @@ def remove_cmd(names, remove_all, yes: bool):
         if p in installed_plugins:
             installed_plugins.remove(p)
             project_config["plugins"] = list(installed_plugins)
-            with open(project_yaml_file, "w") as f:
+            with open(project_yaml_file, "w", encoding="utf-8") as f:
                 yaml.dump(project_config, f)
             click.echo(f"✔ Removed {p} from project.")
 
         _unrecord_usage(plugins_registry, plugin_id, version, str(cwd))
 
     project_config["plugins"] = installed_plugins
-    with open(project_yaml_file, "w") as f:
+    with open(project_yaml_file, "w", encoding="utf-8") as f:
         yaml.dump(project_config, f)
 
 
@@ -679,7 +680,7 @@ def doctor_cmd():
         marker = marker_cfg.get("marker")
         if target_file_rel and marker:
             target_file = cwd / target_file_rel
-            if target_file.exists() and marker in target_file.read_text():
+            if target_file.exists() and marker in target_file.read_text(encoding="utf-8"):
                 click.echo("✔ Marker")
             else:
                 click.echo(f"✖ Marker ({marker} not found in {target_file_rel})")

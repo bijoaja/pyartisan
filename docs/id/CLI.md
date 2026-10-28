@@ -185,7 +185,7 @@ Membuat symlink ke `~/.pyartisan/plugins/myplugin/dev/` — perubahan pada sourc
 ```bash
 pyartisan plugin install payment-midtrans --license valid-xxxxxx
 ```
-> **Masih tiruan (mock).** Verifikasi lisensi menerima kunci apa pun yang berawalan `valid-` tanpa memanggil Blockchain API, dan tidak ada plugin yang diunduh: yang ditulis ke registry hanya `manifest.yaml` kosong (versi `1.0.0`).
+> **Stub offline.** Verifikasi lisensi adalah stub offline (menampilkan `Note: license verification is an offline stub, no network check is performed.`), menerima kunci apa pun yang berawalan `valid-` tanpa memanggil API jaringan atau Blockchain, dan menulis `manifest.yaml` tiruan ke registry.
 
 > `install` **tidak** mengubah project mana pun — plugin baru sekadar tersedia di registry lokal.
 

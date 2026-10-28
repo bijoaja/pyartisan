@@ -18,6 +18,13 @@ def test_cli_plugin_install_blockchain_license(runner, in_tmp_cwd, plugin_projec
     assert "invalid license key" in result_invalid.output.lower()
 
 
+def test_install_license_prints_stub_note(runner, in_tmp_cwd, plugin_project):
+    result = runner.invoke(cli, ["plugin", "install", "premium-plugin", "--license", "valid-12345"])
+    assert result.exit_code == 0, result.output
+    assert "offline stub" in result.output.lower()
+    assert "license ownership successfully verified" in result.output.lower()
+
+
 def _src(root):
     src = root / "src"
     src.mkdir()

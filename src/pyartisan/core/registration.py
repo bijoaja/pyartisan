@@ -40,11 +40,11 @@ def apply_registration(
         all_entry = f'"{class_name}"'
 
         if not target_file.exists():
-            target_file.write_text(f"{import_line}\n\n__all__ = [{all_entry}]\n")
+            target_file.write_text(f"{import_line}\n\n__all__ = [{all_entry}]\n", encoding="utf-8")
             console.success(f"created: {target_file}")
             return
 
-        content = target_file.read_text()
+        content = target_file.read_text(encoding="utf-8")
         if import_line in content:
             return  # already registered
 
@@ -66,7 +66,7 @@ def apply_registration(
         if not all_updated:
             new_lines.append(f"\n__all__ = [{all_entry}]")
 
-        target_file.write_text("\n".join(new_lines) + "\n")
+        target_file.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
         console.success(f"updated: {target_file}")
 
     elif reg_type == "marker":
@@ -79,17 +79,17 @@ def apply_registration(
 
         if not target_file.exists():
             # Create file with marker
-            target_file.write_text(f"{marker}\n{target_line}\n")
+            target_file.write_text(f"{marker}\n{target_line}\n", encoding="utf-8")
             console.success(f"created: {target_file}")
             return
 
-        content = target_file.read_text()
+        content = target_file.read_text(encoding="utf-8")
         if target_line in content:
             return  # already registered
 
         if marker not in content:
             # Fallback append if marker is missing
-            target_file.write_text(content + f"\n{target_line}\n")
+            target_file.write_text(content + f"\n{target_line}\n", encoding="utf-8")
             console.success(f"updated: {target_file}")
             return
 
@@ -100,5 +100,5 @@ def apply_registration(
             if marker in line:
                 new_lines.append(target_line)
 
-        target_file.write_text("\n".join(new_lines) + "\n")
+        target_file.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
         console.success(f"updated: {target_file}")

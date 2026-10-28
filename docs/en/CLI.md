@@ -185,7 +185,7 @@ Creates a symlink at `~/.pyartisan/plugins/myplugin/dev/` — changes to the loc
 ```bash
 pyartisan plugin install payment-midtrans --license valid-xxxxxx
 ```
-> **Still a mock.** License verification accepts any key prefixed with `valid-` without calling a Blockchain API, and no plugin is downloaded: all that is written to the registry is an empty `manifest.yaml` (version `1.0.0`).
+> **Offline stub.** License verification is an offline stub (prints `Note: license verification is an offline stub, no network check is performed.`), accepts any key prefixed with `valid-` without calling any network or blockchain API, and writes a mock `manifest.yaml` to the registry.
 
 > `install` does **not** change any project — the new plugin is simply made available in the local registry.
 

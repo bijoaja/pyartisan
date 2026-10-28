@@ -25,14 +25,14 @@ def _usage_file(plugins_registry: Path, plugin_id: str) -> Path:
 def _load_usage(plugins_registry: Path, plugin_id: str) -> dict:
     f = _usage_file(plugins_registry, plugin_id)
     if f.exists():
-        return json.loads(f.read_text())
+        return json.loads(f.read_text(encoding="utf-8"))
     return {}
 
 
 def _save_usage(plugins_registry: Path, plugin_id: str, data: dict) -> None:
     f = _usage_file(plugins_registry, plugin_id)
     f.parent.mkdir(parents=True, exist_ok=True)
-    f.write_text(json.dumps(data, indent=2))
+    f.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
 def _record_usage(plugins_registry: Path, plugin_id: str, version: str, project_path: str) -> None:

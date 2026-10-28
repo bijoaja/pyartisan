@@ -284,3 +284,71 @@ def test_empty_manifest_is_clean_error(runner, in_tmp_cwd, plugin_project):
     assert res_apply.exit_code == 1, res_apply.output
     assert "invalid or empty" in res_apply.output.lower()
     assert "Traceback" not in res_apply.output
+
+
+def test_non_ascii_manifest_text_roundtrip(tmp_path):
+    import subprocess
+    import sys
+
+    code = (
+        "import json, os, sys, yaml\n"
+        "from pathlib import Path\n"
+        "from click.testing import CliRunner\n"
+        "from pyartisan.cli import cli\n"
+        "\n"
+        "root = Path(sys.argv[1])\n"
+        "home = root / 'home'\n"
+        "home.mkdir()\n"
+        "os.environ['HOME'] = str(home)\n"
+        "os.environ['USERPROFILE'] = str(home)\n"
+        "\n"
+        "proj = root / 'proj'\n"
+        "proj.mkdir()\n"
+        "pyartisan_dir = proj / '.pyartisan'\n"
+        "pyartisan_dir.mkdir()\n"
+        "with open(pyartisan_dir / 'project.yaml', 'w', encoding='utf-8') as f:\n"
+        "    yaml.dump({'project': {'name': 'p'}, 'framework': {'name': 'fastapi'},\n"
+        "               'template': {'name': 'fastiq', 'version': '1.0.0'}}, f)\n"
+        "\n"
+        "plugin_src = root / 'cafe-plugin'\n"
+        "plugin_src.mkdir()\n"
+        "with open(plugin_src / 'manifest.yaml', 'w', encoding='utf-8') as f:\n"
+        "    yaml.dump({'id': 'cafe', 'name': 'Café', 'version': '1.0.0', 'description': 'naïve'}, f)\n"
+        "\n"
+        "runner = CliRunner()\n"
+        "old_cwd = os.getcwd()\n"
+        "os.chdir(proj)\n"
+        "try:\n"
+        "    r1 = runner.invoke(cli, ['plugin', 'install', 'cafe', '--local', str(plugin_src)])\n"
+        "    assert r1.exit_code == 0, r1.output\n"
+        "    r2 = runner.invoke(cli, ['plugin', 'apply', 'cafe', '--yes'])\n"
+        "    assert r2.exit_code == 0, (r2.output, repr(r2.exception))\n"
+        "    r3 = runner.invoke(cli, ['plugin', 'info', 'cafe'])\n"
+        "    assert r3.exit_code == 0, r3.output\n"
+        "    assert 'Café' in r3.output\n"
+        "    assert 'naïve' in r3.output\n"
+        "finally:\n"
+        "    os.chdir(old_cwd)\n"
+        "\n"
+        "p_yaml = (pyartisan_dir / 'project.yaml').read_text(encoding='utf-8')\n"
+        "assert 'cafe@1.0.0' in p_yaml\n"
+        "usage_file = home / '.pyartisan' / 'plugins' / 'cafe' / 'usage.json'\n"
+        "assert usage_file.exists()\n"
+        "assert any(proj.samefile(p) for p in json.loads(usage_file.read_text(encoding='utf-8')).get('1.0.0', []))\n"
+    )
+
+    res = subprocess.run(
+        [
+            sys.executable,
+            "-X",
+            "warn_default_encoding",
+            "-W",
+            "error::EncodingWarning",
+            "-c",
+            code,
+            str(tmp_path),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert res.returncode == 0, f"STDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}"

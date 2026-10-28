@@ -29,17 +29,17 @@ def has_requirement(content: str, spec: str) -> bool:
 
 
 def load_project_yaml(path: Path) -> dict:
-    with open(path / "project.yaml") as f:
+    with open(path / "project.yaml", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
 def load_template_yaml(path: Path) -> dict:
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
 def load_plugin_yaml(path: Path) -> dict:
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -107,7 +107,7 @@ class ProjectContext:
 
         if not target_file_rel or not marker:
             # Fallback
-            target_file_rel = "app/main.py" if self.framework == "fastapi" else "app/main.py"
+            target_file_rel = "app/main.py"
             marker = "# pyartisan:routers"
 
         target_file = self.project_path / target_file_rel
