@@ -57,3 +57,10 @@ def test_cli_plugin_init_existing_directory(runner, in_tmp_cwd, fake_home):
 
     assert not (root / "demo-plugin" / "manifest.yaml").exists()
     assert (root / "demo-plugin" / "keep-me.txt").exists()
+
+
+def test_init_rejects_traversal_name(runner, in_tmp_cwd, fake_home):
+    result = runner.invoke(cli, ["plugin", "init", "../evil"], input="all\n")
+    assert result.exit_code != 0, result.output
+    assert not (in_tmp_cwd.parent / "evil").exists()
+    assert not (fake_home / ".pyartisan" / "evil").exists()
