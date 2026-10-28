@@ -1,0 +1,129 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.10", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python }}
+      - name: Sync dependencies
+        run: uv sync --frozen --python ${{ matrix.python }}
+      - name: Run pytest
+        run: uv run pytest -v
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: "3.14"
+      - name: Build package
+        run: uv build
+      - name: Verify wheel contents
+        run: |
+          python3 -c "
+          import zipfile, glob, sys
+          wheels = glob.glob('dist/*.whl')
+          if not wheels:
+              sys.exit('No wheel found in dist/')
+          with zipfile.ZipFile(wheels[0]) as z:
+              names = z.namelist()
+              required = [
+                  'pyartisan/templates/plugin_init/manifest.yaml.jinja',
+                  'pyartisan/templates/plugin_init/hooks.py.jinja',
+                  'pyartisan/templates/plugin_init/README.md.jinja',
+                  'pyartisan/templates/plugin_init/LICENSE',
+              ]
+              for req in required:
+                  if req not in names:
+                      sys.exit(f'Missing required template file in wheel: {req}')
+              ep_files = [n for n in names if n.endswith('entry_points.txt')]
+              if not ep_files:
+                  sys.exit('entry_points.txt missing in wheel')
+              ep_content = z.read(ep_files[0]).decode('utf-8')
+              if 'pyartisan = pyartisan.cli:cli' not in ep_content:
+                  sys.exit(f'entry_points.txt does not define pyartisan CLI: {ep_content}')
+          print('Wheel contents verified successfully')
+          "
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-wheel
+          path: dist/*.whl
+
+  install:
+    runs-on: ${{ matrix.os }}
+    needs: [build]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: "3.14"
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-wheel
+          path: dist
+      - name: Install and verify CLI tool
+        shell: bash
+        run: |
+          WHEEL=$(ls dist/*.whl | head -n 1)
+          uv tool install --force "$WHEEL"
+          pyartisan --version
+          pyartisan --help
+
+          TEST_DIR=$(mktemp -d)
+          FAKE_HOME=$(mktemp -d)
+          export HOME="$FAKE_HOME"
+          export USERPROFILE="$FAKE_HOME"
+
+          cd "$TEST_DIR"
+          printf 'all\n' | pyartisan plugin init ci-check
+
+          if [ ! -e "$FAKE_HOME/.pyartisan/plugins/ci-check/dev" ]; then
+            echo "Error: dev plugin link not found in fake home"
+            exit 1
+          fi
+          echo "Install check passed successfully"
+
+  ci-ok:
+    runs-on: ubuntu-latest
+    needs: [test, build, install]
+    if: always()
+    steps:
+      - name: Check all jobs succeeded
+        run: |
+          results="${{ join(needs.*.result, ' ') }}"
+          echo "Job results: $results"
+          for res in $results; do
+            if [ "$res" != "success" ]; then
+              echo "Error: Job failed with status: $res"
+              exit 1
+            fi
+          done
+          echo "All required jobs succeeded"

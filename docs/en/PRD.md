@@ -488,7 +488,7 @@ A new framework only needs a new module. Status: **Partial.** A new framework is
 
 ## Testability
 
-Each framework can be tested independently. Status: **Partial.** There is a `tests/smoke_test.py` self-check (no test framework). There is no CI.
+Each framework can be tested independently. Status: **Implemented.** Modular pytest suite in `tests/` (`uv run pytest`) with multi-OS CI.
 
 ---
 

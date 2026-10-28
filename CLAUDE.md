@@ -16,13 +16,12 @@ pyartisan --help
 ```
 
 ### Pengujian & Linting
-Tidak ada framework test (pytest/unittest) sebagai dependency — self-check assert-based ada di `tests/smoke_test.py`. Jalankan:
+Jalankan test suite berbasis pytest:
 ```bash
-PYTHONPATH=src uv run --no-project --with click --with jinja2 --with pyyaml --with flask --with sqlalchemy python tests/smoke_test.py
+uv run pytest
 ```
-(Jika `python` sudah ada di venv yang berisi dependency project, cukup `PYTHONPATH=src python tests/smoke_test.py`. Jangan pakai `uv run --with-editable .`: itu membuat `uv.lock` yang tak terlacak.)
 
-Cover: `name_parts`, `load_manifest`, `render_stub`, registrasi (`import_list`, `marker`), `config` load/save/reset, `make` generik (termasuk target tidak dikenal dan tanpa manifest), `ProjectContext`, seluruh siklus `plugin` (`init`, `install`, `apply`, `remove`, `uninstall`, `list`, `info`, `status`, `doctor`), pemilihan installer uv vs pip, pemaksaan UTF-8, dan pemilihan venv project untuk `serve`. Keluaran yang benar berakhir `ALL SMOKE TESTS PASSED`.
+Cover: `name_parts`, `load_manifest`, `render_stub`, registrasi (`import_list`, `marker`), `config` load/save/reset, `make` generik (termasuk target tidak dikenal dan tanpa manifest), `ProjectContext`, seluruh siklus `plugin` (`init`, `install`, `apply`, `remove`, `uninstall`, `list`, `info`, `status`, `doctor`), pemilihan installer uv vs pip, pemaksaan UTF-8, dan pemilihan venv project untuk `serve`.
 
 ## Arsitektur Codebase
 
