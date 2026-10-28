@@ -12,7 +12,7 @@ from pyartisan import config as config_module
 from pyartisan.core.exceptions import GeneratorNotSupported, ManifestError, TemplateNotFound
 from pyartisan.core.manifest import load_manifest
 from pyartisan.core.registration import apply_registration
-from pyartisan.renderer import render_stub
+from pyartisan.renderer import make_env, render_stub
 from pyartisan.utils.naming import name_parts
 from pyartisan.utils.safe import safe_child, validate_clone_url, validate_name
 
@@ -204,11 +204,9 @@ def dispatch_make(target: str, name: str, force: bool = False, **extra_options) 
     }
 
     # Evaluate dynamic stub_subpath if defined
-    from jinja2 import Environment
-
     if "stub_subpath" in gen_config:
         subpath_template = gen_config["stub_subpath"]
-        rendered_subpath = Environment().from_string(subpath_template).render(context)
+        rendered_subpath = make_env().from_string(subpath_template).render(context)
         stub_dir = safe_child(stub_dir, rendered_subpath)
 
     if not stub_dir.exists():
@@ -217,7 +215,7 @@ def dispatch_make(target: str, name: str, force: bool = False, **extra_options) 
     # Evaluate dynamic dest if defined
     if "dest" in gen_config:
         dest_template = gen_config["dest"]
-        rendered_dest = Environment().from_string(dest_template).render(context)
+        rendered_dest = make_env().from_string(dest_template).render(context)
         dest_dir = safe_child(dest_dir, rendered_dest)
 
     click.echo(f"Scaffolding '{name_title}' ({target}) ...")
@@ -241,7 +239,7 @@ def dispatch_make(target: str, name: str, force: bool = False, **extra_options) 
 
             # Render target path
             target_file_rel = (
-                Environment().from_string(target_template).render(path=dest_path_rel, **context)
+                make_env().from_string(target_template).render(path=dest_path_rel, **context)
             )
             target_file = safe_child(cwd, target_file_rel)
 

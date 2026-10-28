@@ -1,10 +1,17 @@
 import os
 from pathlib import Path
+from typing import Any
 
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import FileSystemLoader
+from jinja2.sandbox import SandboxedEnvironment
 
 from pyartisan.core.exceptions import PyArtisanError
 from pyartisan.utils.fs import write_file
+
+
+def make_env(**kwargs: Any) -> SandboxedEnvironment:
+    # ponytail: sandboxed environment with no autoescape; generated code is python/yaml/markdown, upgrade if html added
+    return SandboxedEnvironment(**kwargs)
 
 
 def render_stub(stub_dir: Path, dest_dir: Path, context: dict, force: bool = False) -> list[Path]:
@@ -12,7 +19,7 @@ def render_stub(stub_dir: Path, dest_dir: Path, context: dict, force: bool = Fal
     if not stub_dir.exists():
         raise FileNotFoundError(f"Stub directory not found: {stub_dir}")
 
-    env = Environment(loader=FileSystemLoader(str(stub_dir)), keep_trailing_newline=True)
+    env = make_env(loader=FileSystemLoader(str(stub_dir)), keep_trailing_newline=True)
 
     # First pass: render file paths and validate containment
     planned = []

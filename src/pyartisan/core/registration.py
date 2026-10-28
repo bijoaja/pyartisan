@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+from pyartisan.renderer import make_env
 from pyartisan.utils import console
 
 
@@ -70,9 +71,7 @@ def apply_registration(
             return
 
         # Render target line (e.g. app.include_router({{name_lower}}_router) -> app.include_router(users_router))
-        from jinja2 import Environment
-
-        target_line = Environment().from_string(line_template).render(context)
+        target_line = make_env().from_string(line_template).render(context)
 
         if not target_file.exists():
             # Create file with marker

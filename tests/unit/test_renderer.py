@@ -1,7 +1,8 @@
 import pytest
+from jinja2.exceptions import SecurityError
 
 from pyartisan.core.exceptions import PyArtisanError
-from pyartisan.renderer import render_stub
+from pyartisan.renderer import make_env, render_stub
 
 
 def test_render_stub(tmp_path):
@@ -68,3 +69,12 @@ def test_render_stub_rejects_before_writing_anything(tmp_path):
 
     assert not dest_dir.exists() or not any(dest_dir.iterdir())
     assert not (tmp_path / "x.py").exists()
+
+
+def test_make_env_blocks_dunder_access():
+    with pytest.raises(SecurityError):
+        make_env().from_string("{{ ''.__class__.__mro__ }}").render()
+
+
+def test_make_env_keeps_quotes_unescaped():
+    assert make_env().from_string("{{ x }}").render(x='"a"') == '"a"'
