@@ -3,6 +3,8 @@ import sys
 import click
 
 from pyartisan import config as config_module
+from pyartisan.core.exceptions import PyArtisanError
+from pyartisan.utils.safe import validate_clone_url, validate_name
 
 
 @click.group(name="config", invoke_without_command=True)
@@ -36,7 +38,12 @@ def config_set(key: str, value: str):
     data = config_module.load()
 
     if key.startswith("templates."):
-        sub = key.split(".")[1]
+        sub = key.split(".", 1)[1]
+        try:
+            validate_name(sub, "template name")
+            validate_clone_url(value, "template URL")
+        except PyArtisanError as e:
+            raise click.ClickException(str(e))
         if "templates" not in data:
             data["templates"] = {}
         data["templates"][sub] = value

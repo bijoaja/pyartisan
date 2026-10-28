@@ -183,7 +183,7 @@ def install_cmd(name: str, local: str, license: str):
         click.echo(f"⬇ Cloning plugin from {repo_url}...")
         try:
             subprocess.run(
-                ["git", "clone", repo_url, str(plugin_dir)],
+                ["git", "clone", "--", repo_url, str(plugin_dir)],
                 check=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,

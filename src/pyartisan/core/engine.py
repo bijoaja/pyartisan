@@ -14,7 +14,7 @@ from pyartisan.core.manifest import load_manifest
 from pyartisan.core.registration import apply_registration
 from pyartisan.renderer import render_stub
 from pyartisan.utils.naming import name_parts
-from pyartisan.utils.safe import safe_child, validate_name
+from pyartisan.utils.safe import safe_child, validate_clone_url, validate_name
 
 
 def _venv_cmd(uv: str | None) -> list[str]:
@@ -73,6 +73,7 @@ def dispatch_new(framework: str, project_name: str) -> None:
         )
 
     repo_url = templates[framework]
+    validate_clone_url(repo_url, "template URL")
 
     if os.path.exists(project_name):
         click.echo(f"❌ Folder '{project_name}' already exists, choose a different name.")
@@ -81,7 +82,7 @@ def dispatch_new(framework: str, project_name: str) -> None:
     click.echo(f"⬇ Cloning {framework} template repository ...")
     try:
         result = subprocess.run(
-            ["git", "clone", repo_url, project_name], capture_output=True, text=True
+            ["git", "clone", "--", repo_url, project_name], capture_output=True, text=True
         )
         if result.returncode != 0:
             click.echo("❌ Failed to clone project!")
