@@ -1,8 +1,8 @@
-import os
-import shutil
-import subprocess
 import json
+import os
+import subprocess
 from pathlib import Path
+
 import click
 
 
@@ -41,7 +41,9 @@ def _record_usage(plugins_registry: Path, plugin_id: str, version: str, project_
     _save_usage(plugins_registry, plugin_id, data)
 
 
-def _unrecord_usage(plugins_registry: Path, plugin_id: str, version: str, project_path: str) -> None:
+def _unrecord_usage(
+    plugins_registry: Path, plugin_id: str, version: str, project_path: str
+) -> None:
     data = _load_usage(plugins_registry, plugin_id)
     projects = data.get(version, [])
     if project_path in projects:
@@ -63,6 +65,7 @@ def _load_hooks(plugin_dir: Path):
     if not hooks_file.exists():
         return None
     import importlib.util
+
     spec = importlib.util.spec_from_file_location("plugin_hooks", hooks_file)
     hooks_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(hooks_module)
@@ -124,22 +127,32 @@ def _check_updates():
             try:
                 local_head = subprocess.run(
                     ["git", "-C", str(version_dir), "rev-parse", "HEAD"],
-                    check=True, capture_output=True, text=True
+                    check=True,
+                    capture_output=True,
+                    text=True,
                 ).stdout.strip()
                 subprocess.run(
                     ["git", "-C", str(version_dir), "fetch"],
-                    check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
                 )
                 remote_head = subprocess.run(
                     ["git", "-C", str(version_dir), "rev-parse", "@{u}"],
-                    check=True, capture_output=True, text=True
+                    check=True,
+                    capture_output=True,
+                    text=True,
                 ).stdout.strip()
             except Exception:
-                click.echo(f"{plugin_root.name}@{version_dir.name}: cannot check (offline or no upstream)")
+                click.echo(
+                    f"{plugin_root.name}@{version_dir.name}: cannot check (offline or no upstream)"
+                )
                 continue
 
             if local_head != remote_head:
-                click.echo(f"{plugin_root.name}@{version_dir.name}: Update available (run `pyartisan plugin update {plugin_root.name}`)")
+                click.echo(
+                    f"{plugin_root.name}@{version_dir.name}: Update available (run `pyartisan plugin update {plugin_root.name}`)"
+                )
             else:
                 click.echo(f"{plugin_root.name}@{version_dir.name}: Up to date")
 

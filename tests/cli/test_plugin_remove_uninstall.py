@@ -1,12 +1,19 @@
 import yaml
+
 from pyartisan.cli import cli
 
 
 def test_cli_plugin_remove_multi_and_all(runner, in_tmp_cwd, plugin_project):
     pyartisan_dir, _home_dir = plugin_project
 
-    project_yaml_content = yaml.safe_load((pyartisan_dir / "project.yaml").read_text(encoding="utf-8"))
-    project_yaml_content["plugins"] = ["payment-midtrans@1.0.0", "auth-jwt@2.0.0", "docker-tools@1.2.1"]
+    project_yaml_content = yaml.safe_load(
+        (pyartisan_dir / "project.yaml").read_text(encoding="utf-8")
+    )
+    project_yaml_content["plugins"] = [
+        "payment-midtrans@1.0.0",
+        "auth-jwt@2.0.0",
+        "docker-tools@1.2.1",
+    ]
     with open(pyartisan_dir / "project.yaml", "w", encoding="utf-8") as f:
         yaml.dump(project_yaml_content, f)
 

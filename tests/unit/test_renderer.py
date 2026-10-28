@@ -34,5 +34,7 @@ def test_render_stub_nested(tmp_path):
     dest_dir = tmp_path / "app"
     rendered = render_stub(stub_dir, dest_dir, {"name_lower": "post", "name_title": "Post"})
     assert len(rendered) == 2
-    assert (dest_dir / "post" / "post_controller.py").read_text(encoding="utf-8") == "class PostController: pass\n"
+    assert (dest_dir / "post" / "post_controller.py").read_text(
+        encoding="utf-8"
+    ) == "class PostController: pass\n"
     assert (dest_dir / "flat.py").read_text(encoding="utf-8") == "x = 'post'\n"

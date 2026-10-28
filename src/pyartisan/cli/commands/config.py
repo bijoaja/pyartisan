@@ -1,5 +1,7 @@
 import sys
+
 import click
+
 from pyartisan import config as config_module
 
 

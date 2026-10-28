@@ -12,18 +12,20 @@ cd pyartisan
 uv tool install --editable .    # isolated env, no venv needed
 ```
 
-Run the test suite (pytest):
+Run the test suite (pytest) and linter (ruff):
 
 ```bash
 uv run pytest
+uv run ruff check .
+uv run ruff format --check .
 ```
 
-All 24 tests should pass.
+All 24 tests and lint checks should pass.
 
 ## Pull requests
 
 1. Open or pick an issue.
-2. Branch from `main`, keep the change small, run `uv run pytest`.
+2. Branch from `main`, keep the change small, run `uv run pytest` and `uv run ruff check .`.
 3. Open a PR to `main` with `Closes #<number>` in the description, and say what was and was not verified.
 4. Docs live in two languages (`docs/en/`, `docs/id/`): change both.
 

@@ -1,4 +1,5 @@
 import click
+
 from pyartisan import __version__
 
 

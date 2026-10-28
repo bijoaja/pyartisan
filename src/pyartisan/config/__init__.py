@@ -19,7 +19,7 @@ DEFAULT_CONFIG = {
     "templates": {
         "flask": "https://github.com/bijoaja/flaskiq.git",
         "fastapi": "https://github.com/bijoaja/fastiq.git",
-    }
+    },
 }
 
 

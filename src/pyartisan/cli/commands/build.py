@@ -1,5 +1,7 @@
 import sys
+
 import click
+
 from pyartisan.core import engine
 from pyartisan.core.exceptions import PyArtisanError
 

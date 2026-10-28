@@ -1,5 +1,7 @@
 import io
+
 import pytest
+
 from pyartisan.cli import _force_utf8
 
 

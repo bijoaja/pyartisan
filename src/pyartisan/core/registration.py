@@ -1,14 +1,11 @@
 import os
 from pathlib import Path
+
 from pyartisan.utils import console
 
 
 def apply_registration(
-    reg_type: str,
-    target_file: Path,
-    context: dict,
-    marker: str = None,
-    line_template: str = None
+    reg_type: str, target_file: Path, context: dict, marker: str = None, line_template: str = None
 ) -> None:
     """Apply import list or marker-based registration into target_file."""
     os.makedirs(target_file.parent, exist_ok=True)
@@ -23,7 +20,9 @@ def apply_registration(
         # Jika service, bedakan view/api
         if "service" in str(target_file):
             file_stem = f"{name_lower}_service"
-            class_name = f"{name_title}ApiService" if "api" in str(target_file) else f"{name_title}Service"
+            class_name = (
+                f"{name_title}ApiService" if "api" in str(target_file) else f"{name_title}Service"
+            )
         elif "repository" in str(target_file):
             file_stem = f"{name_lower}_repository"
             class_name = f"{name_title}Repository"
@@ -60,7 +59,7 @@ def apply_registration(
 
         new_lines.insert(insert_at, import_line)
         if not all_updated:
-            new_lines.append(f'\n__all__ = [{all_entry}]')
+            new_lines.append(f"\n__all__ = [{all_entry}]")
 
         target_file.write_text("\n".join(new_lines) + "\n")
         console.success(f"updated: {target_file}")
@@ -72,6 +71,7 @@ def apply_registration(
 
         # Render target line (e.g. app.include_router({{name_lower}}_router) -> app.include_router(users_router))
         from jinja2 import Environment
+
         target_line = Environment().from_string(line_template).render(context)
 
         if not target_file.exists():

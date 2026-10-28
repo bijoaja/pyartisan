@@ -1,5 +1,5 @@
-from pathlib import Path
 import yaml
+
 from pyartisan.cli import cli
 
 
@@ -16,9 +16,7 @@ def test_cli_generic_make(runner, in_tmp_cwd):
     manifest_data = {
         "id": "testproj",
         "framework": "flask",
-        "paths": {
-            "model": "app/model"
-        },
+        "paths": {"model": "app/model"},
         "generators": {
             "model": {
                 "stub": "stubs/model",
@@ -26,25 +24,24 @@ def test_cli_generic_make(runner, in_tmp_cwd):
                 "path": "model",
                 "dest": "nested_{{type}}",
                 "registration": [
-                    {
-                        "type": "import_list",
-                        "target": "{{path}}/nested_{{type}}/__init__.py"
-                    },
+                    {"type": "import_list", "target": "{{path}}/nested_{{type}}/__init__.py"},
                     {
                         "type": "marker",
                         "target": "app/main.py",
                         "marker": "# pyartisan:models",
-                        "line": "from app.model.nested_{{type}}.{{name_lower}} import {{name_title}}"
-                    }
-                ]
+                        "line": "from app.model.nested_{{type}}.{{name_lower}} import {{name_title}}",
+                    },
+                ],
             }
-        }
+        },
     }
     (manifest_dir / "manifest.yaml").write_text(yaml.dump(manifest_data), encoding="utf-8")
 
     stub_dir = manifest_dir / "stubs" / "model" / "api"
     stub_dir.mkdir(parents=True)
-    (stub_dir / "{{name_lower}}.py.jinja").write_text("class {{name_title}}:\n    pass\n", encoding="utf-8")
+    (stub_dir / "{{name_lower}}.py.jinja").write_text(
+        "class {{name_title}}:\n    pass\n", encoding="utf-8"
+    )
 
     result = runner.invoke(cli, ["make", "model", "Post", "--type", "api"])
     assert result.exit_code == 0, result.output

@@ -2,24 +2,24 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+
 import click
 import yaml
 
 from pyartisan.core.plugin_engine import ProjectContext, load_plugin_yaml
-from pyartisan.renderer import render_stub
-from pyartisan.utils.naming import name_parts
-
 from pyartisan.marketplace.core import (
+    _all_usages,
+    _check_updates,
+    _find_registry_dir,
+    _load_hooks,
     _plugins_registry,
     _record_usage,
-    _unrecord_usage,
-    _all_usages,
-    _load_hooks,
-    _verify_blockchain_license,
     _resolve_plugin_version,
-    _find_registry_dir,
-    _check_updates,
+    _unrecord_usage,
+    _verify_blockchain_license,
 )
+from pyartisan.renderer import render_stub
+from pyartisan.utils.naming import name_parts
 
 
 def _is_link(path: Path) -> bool:
@@ -27,13 +27,17 @@ def _is_link(path: Path) -> bool:
     if path.is_symlink():
         return True
     try:
-        return bool(getattr(path.lstat(), "st_file_attributes", 0) & 0x400)  # FILE_ATTRIBUTE_REPARSE_POINT
+        return bool(
+            getattr(path.lstat(), "st_file_attributes", 0) & 0x400
+        )  # FILE_ATTRIBUTE_REPARSE_POINT
     except OSError:
         return False
 
 
 def _remove_link(path: Path) -> None:
-    os.unlink(path) if path.is_symlink() else os.rmdir(path)  # rmdir drops a junction, not its target
+    os.unlink(path) if path.is_symlink() else os.rmdir(
+        path
+    )  # rmdir drops a junction, not its target
 
 
 def _link_dir(target: Path, link: Path) -> None:
@@ -43,7 +47,9 @@ def _link_dir(target: Path, link: Path) -> None:
     except OSError:
         if os.name != "nt":
             raise
-        subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)], check=True, capture_output=True)
+        subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(link), str(target)], check=True, capture_output=True
+        )
 
 
 @click.group(name="plugin")
@@ -66,9 +72,7 @@ def init_cmd(name: str):
         type=click.Choice(["fastapi", "flask", "django", "all"]),
         default="all",
     )
-    frameworks = (
-        ["fastapi", "flask", "django"] if framework_choice == "all" else [framework_choice]
-    )
+    frameworks = ["fastapi", "flask", "django"] if framework_choice == "all" else [framework_choice]
 
     _, name_title, _, _ = name_parts(name)
     context = {"name": name, "name_title": name_title}
@@ -142,7 +146,7 @@ def install_cmd(name: str, local: str, license: str):
             "id": name,
             "name": f"Premium {name}",
             "version": "1.0.0",
-            "dependencies": {"pip": ["stripe"]}
+            "dependencies": {"pip": ["stripe"]},
         }
         with open(plugin_dir / "manifest.yaml", "w") as f:
             yaml.dump(manifest_data, f)
@@ -165,7 +169,7 @@ def install_cmd(name: str, local: str, license: str):
                 ["git", "clone", repo_url, str(plugin_dir)],
                 check=True,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                stderr=subprocess.DEVNULL,
             )
         except Exception as e:
             click.echo(f"❌ Failed to clone plugin repository: {e}")
@@ -178,7 +182,9 @@ def install_cmd(name: str, local: str, license: str):
 
     plugin_manifest = load_plugin_yaml(manifest_file)
     click.echo(f"📦 Plugin '{plugin_manifest.get('name', name)}' downloaded to registry.")
-    click.echo(f"👉 Run `pyartisan plugin apply {plugin_manifest['id']}` inside a project to use it.")
+    click.echo(
+        f"👉 Run `pyartisan plugin apply {plugin_manifest['id']}` inside a project to use it."
+    )
 
 
 @plugin_group.command(name="apply")
@@ -194,7 +200,9 @@ def apply_cmd(name: str):
     plugins_registry = _plugins_registry()
     plugin_root = plugins_registry / name
     if not plugin_root.exists():
-        click.echo(f"❌ Plugin '{name}' not found in registry. Run `pyartisan plugin install {name}` first.")
+        click.echo(
+            f"❌ Plugin '{name}' not found in registry. Run `pyartisan plugin install {name}` first."
+        )
         return
 
     version = _resolve_plugin_version(plugin_root)
@@ -269,7 +277,9 @@ def update_cmd(name: str):
             try:
                 subprocess.run(
                     ["git", "-C", str(version_dir), "pull"],
-                    check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
                 )
                 updated_any = True
             except Exception as e:
@@ -344,7 +354,9 @@ def remove_cmd(names, remove_all):
 
 @plugin_group.command(name="uninstall")
 @click.argument("names", nargs=-1)
-@click.option("--all", "uninstall_all", is_flag=True, help="Uninstall all plugins from the registry")
+@click.option(
+    "--all", "uninstall_all", is_flag=True, help="Uninstall all plugins from the registry"
+)
 def uninstall_cmd(names, uninstall_all):
     """Delete plugin(s) from the global registry, if unused by any project."""
     plugins_registry = _plugins_registry()
@@ -376,8 +388,15 @@ def uninstall_cmd(names, uninstall_all):
 
 
 @plugin_group.command(name="list")
-@click.option("--global", "show_global", is_flag=True, help="List plugins downloaded in the global registry")
-@click.option("--updates", "show_updates", is_flag=True, help="Check for available updates on git-based registry plugins")
+@click.option(
+    "--global", "show_global", is_flag=True, help="List plugins downloaded in the global registry"
+)
+@click.option(
+    "--updates",
+    "show_updates",
+    is_flag=True,
+    help="Check for available updates on git-based registry plugins",
+)
 def list_cmd(show_global, show_updates):
     """List plugins (project-scoped by default, --global for the registry, --updates to check versions)."""
     if show_updates:
@@ -535,7 +554,9 @@ def doctor_cmd():
         req_content = req_file.read_text() if req_file.exists() else ""
         missing = [d for d in deps if d not in req_content]
         if missing:
-            click.echo(f"✖ Dependencies ({plugin_id}: missing {', '.join(missing)} in requirements.txt)")
+            click.echo(
+                f"✖ Dependencies ({plugin_id}: missing {', '.join(missing)} in requirements.txt)"
+            )
             all_ok = False
         else:
             click.echo(f"✔ Dependencies ({plugin_id})")

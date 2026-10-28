@@ -26,7 +26,34 @@ where = ["src"]
 pyartisan = ["templates/plugin_init/**/*"]
 
 [dependency-groups]
-dev = ["pytest"]
+dev = [
+    "pytest",
+    "ruff>=0.4.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # Pyflakes
+    "I",    # isort (import sorting)
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+]
+ignore = [
+    "E501", # line too long (handled by formatter)
+    "B904", # raise ... from err in exception handlers
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

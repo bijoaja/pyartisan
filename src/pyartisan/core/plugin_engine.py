@@ -1,21 +1,25 @@
-import yaml
 import os
-import shutil
 from pathlib import Path
+
+import yaml
 from jinja2 import Environment
+
 from pyartisan.core.registration import apply_registration
 from pyartisan.utils.naming import name_parts
 
+
 def load_project_yaml(path: Path) -> dict:
-    with open(path / "project.yaml", "r") as f:
+    with open(path / "project.yaml") as f:
         return yaml.safe_load(f)
+
 
 def load_template_yaml(path: Path) -> dict:
-    with open(path, "r") as f:
+    with open(path) as f:
         return yaml.safe_load(f)
 
+
 def load_plugin_yaml(path: Path) -> dict:
-    with open(path, "r") as f:
+    with open(path) as f:
         return yaml.safe_load(f)
 
 
@@ -44,7 +48,11 @@ class ProjectContext:
         path_template = self.template_config.get("paths", {}).get("services")
         if not path_template:
             # Fallback path default
-            path_template = "app/services/{module}.py" if self.framework == "fastapi" else "app/service/{module}.py"
+            path_template = (
+                "app/services/{module}.py"
+                if self.framework == "fastapi"
+                else "app/service/{module}.py"
+            )
 
         name_lower, name_title, name_snake, name_plural = name_parts(name)
         context = {
@@ -64,7 +72,6 @@ class ProjectContext:
         # (Selama runtime, plugins disalin ke ~/.pyartisan/plugins/)
         # stub_path relatif terhadap root plugin
         # project_context akan dipanggil oleh hooks.py yang tahu path plugin-nya
-        plugin_root = Path(stub_path).parent.parent
         full_stub_path = Path(stub_path)
         if not full_stub_path.is_absolute():
             # plugin_root akan dilewatkan atau disimpulkan
@@ -72,7 +79,7 @@ class ProjectContext:
 
         # render stub ke service
         if Path(stub_path).exists():
-            with open(stub_path, "r") as f:
+            with open(stub_path) as f:
                 template_data = f.read()
             rendered = Environment().from_string(template_data).render(context)
             with open(dest_path, "w") as f:
@@ -101,7 +108,7 @@ class ProjectContext:
         }
 
         if self.framework == "fastapi":
-            line_template = "from app.modules.{{name_lower}}.router import router as {{name_lower}}_router\napp.include_router({{name_lower}}_router, prefix=\"/{{name_lower}}\")"
+            line_template = 'from app.modules.{{name_lower}}.router import router as {{name_lower}}_router\napp.include_router({{name_lower}}_router, prefix="/{{name_lower}}")'
         else:
             line_template = "from app.{{name_lower}}.routes import {{name_lower}}_bp\napp.register_blueprint({{name_lower}}_bp)"
 
@@ -110,7 +117,7 @@ class ProjectContext:
             target_file=target_file,
             context=context,
             marker=marker,
-            line_template=line_template
+            line_template=line_template,
         )
 
     def add_dependency(self, package_name: str):
