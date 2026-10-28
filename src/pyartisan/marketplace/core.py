@@ -69,6 +69,8 @@ def _load_hooks(plugin_dir: Path):
     import importlib.util
 
     spec = importlib.util.spec_from_file_location("plugin_hooks", hooks_file)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load hooks from {hooks_file}")
     hooks_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(hooks_module)
     return hooks_module
@@ -80,7 +82,7 @@ def _verify_blockchain_license(plugin_id: str, license_key: str) -> bool:
     return False
 
 
-def _resolve_plugin_version(plugin_root: Path) -> str:
+def _resolve_plugin_version(plugin_root: Path) -> str | None:
     version_dirs = sorted(d.name for d in plugin_root.iterdir() if d.is_dir())
     if "dev" in version_dirs:
         return "dev"

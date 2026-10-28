@@ -6,7 +6,11 @@ from pyartisan.utils import console
 
 
 def apply_registration(
-    reg_type: str, target_file: Path, context: dict, marker: str = None, line_template: str = None
+    reg_type: str,
+    target_file: Path,
+    context: dict,
+    marker: str | None = None,
+    line_template: str | None = None,
 ) -> None:
     """Apply import list or marker-based registration into target_file."""
     os.makedirs(target_file.parent, exist_ok=True)
