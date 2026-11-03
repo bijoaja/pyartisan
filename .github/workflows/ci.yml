@@ -87,7 +87,7 @@ jobs:
                   sys.exit(f'entry_points.txt does not define pyartisan CLI: {ep_content}')
           print('Wheel contents verified successfully')
           "
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist-wheel
           path: dist/*.whl
