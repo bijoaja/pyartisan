@@ -228,7 +228,8 @@ def dispatch_make(target: str, name: str, force: bool = False, **extra_options: 
     if "dest" in gen_config:
         dest_template = gen_config["dest"]
         rendered_dest = make_env().from_string(dest_template).render(context)
-        dest_dir = safe_child(dest_dir, rendered_dest)
+        if rendered_dest:
+            dest_dir = safe_child(dest_dir, rendered_dest)
 
     click.echo(f"Scaffolding '{name_title}' ({target}) ...")
     render_stub(stub_dir, dest_dir, context, force=force)

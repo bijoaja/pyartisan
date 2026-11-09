@@ -134,6 +134,16 @@ def test_make_rejects_manifest_dest_escape(runner, tmp_path, monkeypatch):
     assert _files(tmp_path) == before
 
 
+def test_make_empty_rendered_dest(runner, tmp_path, monkeypatch):
+    proj = _project(tmp_path, {"dest": ""})
+    monkeypatch.chdir(proj)
+
+    result = runner.invoke(cli, ["make", "controller", "User"])
+
+    assert result.exit_code == 0, result.output
+    assert (proj / "app" / "controller" / "user.py").exists()
+
+
 def test_new_rejects_bad_project_name(runner, in_tmp_cwd, isolated_config, monkeypatch):
     def _boom(*args, **kwargs):
         raise AssertionError("subprocess.run must not be called")

@@ -21,18 +21,27 @@ def apply_registration(
 
     if reg_type == "import_list":
         # Strategy 1: import_list (mirror pyartisan.utils.fs.write_service_init)
-        file_stem = f"{name_lower}_controller" if "controller" in str(target_file) else name_lower
+        file_stem = name_lower
+        path_parts = {p.lower() for p in target_file.parts}
+        if "controller" in path_parts or "controllers" in path_parts:
+            file_stem = f"{name_lower}_controller"
+            class_name = (
+                f"{name_title}ApiController" if "api" in path_parts else f"{name_title}Controller"
+            )
         # Jika service, bedakan view/api
-        if "service" in str(target_file):
+        elif "service" in path_parts or "services" in path_parts:
             file_stem = f"{name_lower}_service"
             class_name = (
-                f"{name_title}ApiService" if "api" in str(target_file) else f"{name_title}Service"
+                f"{name_title}ApiService" if "api" in path_parts else f"{name_title}Service"
             )
-        elif "repository" in str(target_file):
+        elif "repository" in path_parts or "repositories" in path_parts:
             file_stem = f"{name_lower}_repository"
             class_name = f"{name_title}Repository"
-        elif "model" in str(target_file):
+        elif "model" in path_parts or "models" in path_parts:
             class_name = name_title
+        elif "routes" in path_parts or "route" in path_parts:
+            file_stem = f"view.{name_lower}" if target_file.parent.name != "view" else name_lower
+            class_name = f"{name_lower}_bp"
         else:
             class_name = name_title
 
@@ -48,25 +57,42 @@ def apply_registration(
         if import_line in content:
             return  # already registered
 
-        lines = content.splitlines()
-        new_lines = []
-        all_updated = False
-        insert_at = 0
+        raw_lines = [line for line in content.splitlines() if line.strip()]
+        import_lines = [
+            line for line in raw_lines if line.startswith("from .") or line.startswith("import ")
+        ]
+        other_lines = [
+            line
+            for line in raw_lines
+            if not (line.startswith("from .") or line.startswith("import "))
+            and not line.strip().startswith("__all__")
+        ]
+        all_lines = [line for line in raw_lines if line.strip().startswith("__all__")]
 
-        for i, line in enumerate(lines):
-            if line.strip().startswith("__all__") and not all_updated:
-                insert_at = i
-                stripped = line.rstrip()
-                if stripped.endswith("]"):
-                    line = stripped[:-1].rstrip() + f", {all_entry}]"
-                all_updated = True
-            new_lines.append(line)
+        if import_line not in import_lines:
+            import_lines.append(import_line)
+        import_lines.sort()
 
-        new_lines.insert(insert_at, import_line)
-        if not all_updated:
-            new_lines.append(f"\n__all__ = [{all_entry}]")
+        if all_lines:
+            all_line = all_lines[0].rstrip()
+            if all_line.endswith("]"):
+                if all_entry not in all_line:
+                    stripped = all_line[:-1].rstrip()
+                    if stripped.endswith("["):
+                        all_line = f"{stripped}{all_entry}]"
+                    else:
+                        all_line = f"{stripped}, {all_entry}]"
+        else:
+            all_line = f"__all__ = [{all_entry}]"
 
-        target_file.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+        parts = []
+        if import_lines:
+            parts.append("\n".join(import_lines))
+        if other_lines:
+            parts.append("\n".join(other_lines))
+        parts.append(all_line)
+
+        target_file.write_text("\n\n".join(parts) + "\n", encoding="utf-8")
         console.success(f"updated: {target_file}")
 
     elif reg_type == "marker":
