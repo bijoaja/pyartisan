@@ -22,23 +22,24 @@ def apply_registration(
     if reg_type == "import_list":
         # Strategy 1: import_list (mirror pyartisan.utils.fs.write_service_init)
         file_stem = name_lower
-        if "controller" in str(target_file):
+        path_parts = {p.lower() for p in target_file.parts}
+        if "controller" in path_parts or "controllers" in path_parts:
             file_stem = f"{name_lower}_controller"
             class_name = (
-                f"{name_title}ApiController" if "api" in str(target_file) else f"{name_title}Controller"
+                f"{name_title}ApiController" if "api" in path_parts else f"{name_title}Controller"
             )
         # Jika service, bedakan view/api
-        elif "service" in str(target_file):
+        elif "service" in path_parts or "services" in path_parts:
             file_stem = f"{name_lower}_service"
             class_name = (
-                f"{name_title}ApiService" if "api" in str(target_file) else f"{name_title}Service"
+                f"{name_title}ApiService" if "api" in path_parts else f"{name_title}Service"
             )
-        elif "repository" in str(target_file):
+        elif "repository" in path_parts or "repositories" in path_parts:
             file_stem = f"{name_lower}_repository"
             class_name = f"{name_title}Repository"
-        elif "model" in str(target_file):
+        elif "model" in path_parts or "models" in path_parts:
             class_name = name_title
-        elif "routes" in str(target_file):
+        elif "routes" in path_parts or "route" in path_parts:
             file_stem = f"view.{name_lower}" if target_file.parent.name != "view" else name_lower
             class_name = f"{name_lower}_bp"
         else:
