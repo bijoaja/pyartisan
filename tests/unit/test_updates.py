@@ -1,10 +1,24 @@
 import json
 import subprocess
+from pathlib import Path
 from types import SimpleNamespace
+
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib  # type: ignore[no-redef]
 
 import pytest
 
+import pyartisan
 from pyartisan.shared import updates
+
+
+def test_version_matches_pyproject():
+    pyproject_path = Path(__file__).resolve().parents[2] / "pyproject.toml"
+    with pyproject_path.open("rb") as f:
+        data = tomllib.load(f)
+    assert data["project"]["version"] == pyartisan.__version__
 
 
 def test_parse_semver():

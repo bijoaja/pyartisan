@@ -20,6 +20,11 @@ pyartisan --help
 
 `uv tool install` membuat env terpisah, jadi tidak perlu membuat venv dan Python sistem tidak tersentuh. `--editable` membuat perubahan di `src/` langsung terpakai tanpa install ulang.
 
+Perintah CLI yang umum digunakan selama pengembangan:
+* `pyartisan serve` — menjalankan server dev (otomatis: Docker -> venv project -> uv). Tersedia flag pemaksa runtime: `--docker`, `--venv`, atau `--uv`.
+* `pyartisan doctor` — memeriksa lingkungan lokal dan dependensi project yang usang. Gunakan `pyartisan doctor --upgrade` untuk memperbarui dependensi usang secara otomatis.
+* `pyartisan analyze` — menjalankan pipeline kualitas kode (Ruff, Bandit, Mypy, Pytest). Gunakan `pyartisan analyze --quick` untuk hanya menjalankan lint dan format.
+
 Tanpa uv, alternatifnya `pip install -e .` di dalam venv Anda sendiri.
 
 Jika `pyartisan` tidak ditemukan, jalankan `uv tool update-shell` lalu buka terminal baru. Setelah selesai mencoba, hapus dengan `uv tool uninstall pyartisan`.
@@ -32,7 +37,7 @@ Jika `pyartisan` tidak ditemukan, jalankan `uv tool update-shell` lalu buka term
 
 ```text
 src/pyartisan/
-├── cli/commands/     # satu file per command (new, make, serve, build, config, doctor, version, plugin)
+├── cli/commands/     # satu file per command (new, make, serve, build, config, doctor, version, plugin, analyze)
 ├── core/
 │   ├── engine.py         # dispatch_new / dispatch_make / dispatch_serve / dispatch_build
 │   ├── manifest.py       # baca .pyartisan/manifest.yaml
@@ -97,6 +102,13 @@ CI berjalan di GitHub Actions pada pull request dan push ke `main` di Ubuntu, Wi
 
 Setiap perubahan logika non-trivial sebaiknya menambah test case di bawah `tests/unit/` atau `tests/cli/`.
 
+Untuk menjalankan seluruh rangkaian pemeriksaan kualitas kode secara terpadu pada project, gunakan:
+
+```bash
+pyartisan analyze            # jalankan ruff check, ruff format, bandit, mypy, dan pytest
+pyartisan analyze --quick    # lewati bandit, mypy, dan pytest (hanya ruff lint & format)
+```
+
 ---
 
 ## 4. Alur kerja
@@ -140,7 +152,28 @@ Jika `ProjectContext` (`core/plugin_engine.py`) perlu perilaku khusus framework,
 
 ---
 
-## 8. Melaporkan masalah
+## 8. Alur rilis tag
+
+Untuk merilis versi baru PyArtisan:
+
+1. Perbarui nomor versi di `pyproject.toml` (`[project].version`) dan `src/pyartisan/__init__.py` (`__version__`). Keduanya wajib identik.
+2. Pastikan seluruh gate pengujian dan linting bersih:
+   ```bash
+   uv run pytest
+   uv run ruff check .
+   uv run ruff format --check .
+   uv run mypy
+   uv run bandit -q -r src -c pyproject.toml
+   ```
+3. Buat git tag semver dan push ke remote repository:
+   ```bash
+   git tag vX.Y.Z && git push --tags
+   ```
+   Workflow CI akan secara otomatis memverifikasi build wheel dan instalasi paket.
+
+---
+
+## 9. Melaporkan masalah
 
 Buka issue di <https://github.com/bijoaja/pyartisan/issues>. Sertakan:
 
