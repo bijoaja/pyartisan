@@ -13,6 +13,7 @@ from pyartisan import config as config_module
 from pyartisan.core.exceptions import (
     GeneratorNotSupported,
     ManifestError,
+    PyArtisanError,
     ServeError,
     TemplateNotFound,
 )
@@ -453,3 +454,88 @@ def dispatch_build() -> None:
     except Exception as e:
         click.echo(f"❌ Build failed: {e}")
         sys.exit(1)
+
+
+def analyze_steps(
+    manifest: dict[str, Any], fix: bool = False, cwd: Path | None = None
+) -> list[tuple[str, str]]:
+    """Determine analysis steps from manifest or fallback defaults."""
+    scripts = manifest.get("scripts")
+    if not isinstance(scripts, dict):
+        scripts = {}
+    analyze_cfg = scripts.get("analyze")
+    if isinstance(analyze_cfg, list) and analyze_cfg:
+        steps: list[tuple[str, str]] = []
+        for step in analyze_cfg:
+            if isinstance(step, dict):
+                name = str(step.get("name", ""))
+                cmd = str(step.get("fix") if fix and "fix" in step else step.get("cmd", ""))
+                steps.append((name, cmd))
+        return steps
+
+    target_cwd = cwd or Path.cwd()
+    if (target_cwd / "src").is_dir():
+        bandit_target = "src"
+    elif (target_cwd / "app").is_dir():
+        bandit_target = "app"
+    else:
+        bandit_target = "."
+
+    return [
+        ("ruff-check", "ruff check --fix ." if fix else "ruff check ."),
+        ("ruff-format", "ruff format ." if fix else "ruff format --check ."),
+        ("bandit", f"bandit -q -r {bandit_target} -c pyproject.toml"),
+        ("mypy", "mypy ."),
+    ]
+
+
+def dispatch_analyze(
+    only: tuple[str, ...] = (),
+    fix: bool = False,
+    cwd: Path | None = None,
+) -> None:
+    """Run code quality and security checks."""
+    target_cwd = cwd or Path.cwd()
+    manifest = load_manifest(target_cwd)
+    steps = analyze_steps(manifest, fix=fix, cwd=target_cwd)
+
+    if only:
+        valid_names = [s[0] for s in steps]
+        for name in only:
+            if name not in valid_names:
+                raise PyArtisanError(
+                    f"Unknown check '{name}'. Available checks: {', '.join(valid_names)}"
+                )
+        steps = [s for s in steps if s[0] in only]
+
+    venv = _find_project_venv(target_cwd)
+    failed: list[str] = []
+
+    for name, cmd_str in steps:
+        click.echo(f"Running {name} ({cmd_str}) ...")
+        argv = shlex.split(cmd_str)
+        if venv is not None:
+            cmd_argv, env = _venv_command(venv, argv)
+        else:
+            cmd_argv, env = argv, os.environ.copy()
+
+        try:
+            result = subprocess.run(cmd_argv, env=env, cwd=target_cwd)
+            if result.returncode == 0:
+                click.echo(f"✔ {name} passed.")
+            else:
+                failed.append(name)
+                click.echo(f"❌ {name} failed.")
+        except FileNotFoundError:
+            failed.append(name)
+            tool_name = argv[0] if argv else cmd_str
+            click.echo(f"❌ {name} failed: tool '{tool_name}' not found.")
+        except Exception as e:
+            failed.append(name)
+            click.echo(f"❌ {name} failed: {e}")
+
+    if failed:
+        click.echo(f"Some checks failed: {', '.join(failed)}.")
+        sys.exit(1)
+
+    click.echo("All checks passed.")

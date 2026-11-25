@@ -1,3 +1,4 @@
+from pyartisan.cli.commands.analyze import analyze_cmd
 from pyartisan.cli.commands.build import build_cmd
 from pyartisan.cli.commands.config import config_group
 from pyartisan.cli.commands.doctor import doctor_cmd
@@ -8,6 +9,7 @@ from pyartisan.cli.commands.serve import serve_cmd
 from pyartisan.cli.commands.version import version_cmd
 
 __all__ = [
+    "analyze_cmd",
     "new_cmd",
     "make_cmd",
     "serve_cmd",
