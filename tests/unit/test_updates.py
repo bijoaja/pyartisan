@@ -14,7 +14,7 @@ import pyartisan
 from pyartisan.shared import updates
 
 
-def test_version_matches_pyproject():
+def test_version_matches_pyproject() -> None:
     pyproject_path = Path(__file__).resolve().parents[2] / "pyproject.toml"
     with pyproject_path.open("rb") as f:
         data = tomllib.load(f)

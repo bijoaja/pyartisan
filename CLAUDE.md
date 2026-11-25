@@ -13,8 +13,9 @@ uv tool install --editable .   # atau: pip3 install -e .
 ### Menjalankan CLI secara Lokal
 ```bash
 pyartisan --help
-pyartisan analyze            # jalankan pipeline kualitas kode (ruff, bandit, mypy, pytest)
-pyartisan analyze --quick    # mode cepat (hanya ruff check & format)
+pyartisan analyze            # jalankan ruff check, ruff format --check, bandit, mypy
+pyartisan analyze --only <check> # jalankan check tertentu (ruff-check, ruff-format, bandit, mypy)
+pyartisan analyze --fix      # perbaiki otomatis jika didukung (ruff check & format)
 pyartisan serve              # otomatis: Docker -> venv -> uv
 pyartisan serve --docker     # paksa mode Docker compose
 pyartisan serve --venv       # paksa venv project

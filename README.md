@@ -10,7 +10,7 @@ PyArtisan is a multi-framework Python web development CLI, inspired by Laravel A
 - `make`: generate code from the generators declared in the project's manifest, with no hardcoded generator per framework
 - `serve`: Docker first, then the project's venv (with `--docker`, `--venv`, `--uv` runtime flags)
 - `build`: run the build script from the manifest
-- `analyze`: run project code quality checks (Ruff, Bandit, Mypy, Pytest; `--quick` supported)
+- `analyze`: run project code quality checks (Ruff, Bandit, Mypy; supports `--only` and `--fix`)
 - `plugin`: package-manager-style plugins (`install`, `apply`, `remove`, ...), see [docs/en/CLI.md](docs/en/CLI.md#7-plugin-system)
 - `config`: persistent settings in `~/.pyartisan/config.toml`
 - `doctor`: check your local environment and project dependencies (`--upgrade` supported)
@@ -107,10 +107,13 @@ Runs `scripts.build` from `.pyartisan/manifest.yaml`. Fails with exit code 1 if 
 ### Code analysis (`analyze`)
 
 ```bash
-pyartisan analyze [--quick]
+pyartisan analyze [--only <check>] [--fix]
 ```
 
-Runs the project analysis pipeline: Ruff lint, Ruff format check, Bandit security scan, Mypy type check, and Pytest. Use `--quick` to run only lint and format checks.
+Runs the project analysis pipeline: `ruff-check` (`ruff check .`), `ruff-format` (`ruff format --check .`), `bandit` security scan, and `mypy` type check.
+
+- `--only <check>`: run only the specified check (can be repeated). Available checks: `ruff-check`, `ruff-format`, `bandit`, `mypy`.
+- `--fix`: automatically fix issues where supported (e.g. `ruff check --fix` and `ruff format`).
 
 ### Configuration
 

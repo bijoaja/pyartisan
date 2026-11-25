@@ -23,7 +23,7 @@ pyartisan --help
 Perintah CLI yang umum digunakan selama pengembangan:
 * `pyartisan serve` — menjalankan server dev (otomatis: Docker -> venv project -> uv). Tersedia flag pemaksa runtime: `--docker`, `--venv`, atau `--uv`.
 * `pyartisan doctor` — memeriksa lingkungan lokal dan dependensi project yang usang. Gunakan `pyartisan doctor --upgrade` untuk memperbarui dependensi usang secara otomatis.
-* `pyartisan analyze` — menjalankan pipeline kualitas kode (Ruff, Bandit, Mypy, Pytest). Gunakan `pyartisan analyze --quick` untuk hanya menjalankan lint dan format.
+* `pyartisan analyze` — menjalankan pipeline kualitas kode (Ruff, Bandit, Mypy; mendukung opsi `--only` dan `--fix`).
 
 Tanpa uv, alternatifnya `pip install -e .` di dalam venv Anda sendiri.
 
@@ -105,8 +105,9 @@ Setiap perubahan logika non-trivial sebaiknya menambah test case di bawah `tests
 Untuk menjalankan seluruh rangkaian pemeriksaan kualitas kode secara terpadu pada project, gunakan:
 
 ```bash
-pyartisan analyze            # jalankan ruff check, ruff format, bandit, mypy, dan pytest
-pyartisan analyze --quick    # lewati bandit, mypy, dan pytest (hanya ruff lint & format)
+pyartisan analyze                 # jalankan ruff check, ruff format --check, bandit, mypy
+pyartisan analyze --only <check>  # jalankan check tertentu (ruff-check, ruff-format, bandit, mypy)
+pyartisan analyze --fix           # perbaiki otomatis jika didukung (ruff check & format)
 ```
 
 ---
