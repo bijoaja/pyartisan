@@ -8,6 +8,7 @@ else:
 
 from pyartisan.core.exceptions import ConfigError
 
+REPO_URL = "https://github.com/bijoaja/pyartisan.git"
 CONFIG_DIR = Path.home() / ".pyartisan"
 CONFIG_PATH = CONFIG_DIR / "config.toml"
 
