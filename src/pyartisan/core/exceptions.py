@@ -28,3 +28,7 @@ class GeneratorNotSupported(PyArtisanError):
 
 class TemplateNotFound(PyArtisanError):
     """Raised when no git repository URL is registered for the requested framework."""
+
+
+class ServeError(PyArtisanError):
+    """Raised on dev server dispatch or mode selection failure."""

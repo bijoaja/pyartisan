@@ -10,7 +10,12 @@ import click
 import yaml
 
 from pyartisan import config as config_module
-from pyartisan.core.exceptions import GeneratorNotSupported, ManifestError, TemplateNotFound
+from pyartisan.core.exceptions import (
+    GeneratorNotSupported,
+    ManifestError,
+    ServeError,
+    TemplateNotFound,
+)
 from pyartisan.core.manifest import load_manifest
 from pyartisan.core.registration import apply_registration
 from pyartisan.renderer import make_env, render_stub
@@ -314,55 +319,121 @@ def _venv_command(venv: Path, argv: list[str]) -> tuple[list[str], dict]:
     return argv, env
 
 
-def dispatch_serve() -> None:
-    """Run dev server using the fallback docker -> venv -> warning strategy."""
-    cwd = Path.cwd()
-    manifest = load_manifest(cwd)  # ensures it's a project
+def select_serve_mode(cwd: Path, manifest: dict[str, Any], forced: str | None = None) -> str:
+    """Select execution mode ('docker', 'venv', 'uv') for dev server."""
+    scripts = manifest.get("scripts") or {}
+    serve = scripts.get("serve") or ""
+    serve_uv = scripts.get("serve_uv") or ""
+    has_uv_cmd = serve.startswith(("uv run ", "uv ")) or bool(serve_uv)
 
-    # 1. Cek docker compose
-    if (cwd / "docker-compose.yml").exists() and _docker_available():
-        click.echo("Starting dev server with Docker (docker compose up) ...")
-        try:
-            cmd = ["docker", "compose", "up"]
-            try:
-                subprocess.run(
-                    ["docker", "compose", "version"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    check=True,
+    if forced:
+        if forced == "docker":
+            if not ((cwd / "docker-compose.yml").exists() and _docker_available()):
+                raise ServeError(
+                    "Docker mode requested, but docker-compose.yml is missing or Docker daemon is not running."
                 )
-            except Exception:
-                cmd = ["docker-compose", "up"]
-            subprocess.run(cmd)
-        except KeyboardInterrupt:
-            click.echo("\nServer stopped.")
-        return
+            return "docker"
+        if forced == "venv":
+            if not (_find_project_venv(cwd) is not None and bool(serve)):
+                raise ServeError(
+                    "Venv mode requested, but no virtual environment or serve script found."
+                )
+            return "venv"
+        if forced == "uv":
+            if not shutil.which("uv"):
+                raise ServeError("Uv mode requested, but 'uv' was not found on PATH.")
+            if not has_uv_cmd:
+                raise ServeError(
+                    "Uv mode requested, but no 'serve_uv' script defined in manifest.yaml."
+                )
+            return "uv"
+        raise ServeError(f"Unknown serve mode: {forced}")
 
-    # 2. Cek venv + script serve
-    venv = _find_project_venv(cwd)
-    serve_script = manifest.get("scripts", {}).get("serve")
+    # Auto fallback: docker -> venv -> uv
+    if (cwd / "docker-compose.yml").exists() and _docker_available():
+        return "docker"
+    if _find_project_venv(cwd) is not None and bool(serve):
+        return "venv"
+    if shutil.which("uv") and has_uv_cmd:
+        return "uv"
 
-    if venv and serve_script:
-        click.echo(f"Starting dev server locally (venv: {venv.name}) ...")
-        try:
-            argv, env = _venv_command(venv, shlex.split(serve_script))
-            subprocess.run(argv, env=env)
-        except KeyboardInterrupt:
-            click.echo("\nServer stopped.")
-        except Exception as e:
-            click.echo(f"❌ Serve script failed: {e}")
-            sys.exit(1)
-        return
-
-    # 3. Fallback warning
-    click.echo("Error: No docker-compose.yml active and no project virtual environment found.")
-    click.echo("  To resolve:")
-    click.echo("    - Make sure Docker is running and run `pyartisan make docker` if needed.")
-    if serve_script:
-        click.echo(
+    lines = [
+        "No docker-compose.yml active and no project virtual environment found.",
+        "  To resolve:",
+        "    - Make sure Docker is running and run `pyartisan make docker` if needed.",
+    ]
+    if serve:
+        lines.append(
             "    - Create the project venv (./venv or ./.venv), e.g. `uv venv venv` and install requirements."
         )
-    sys.exit(1)
+    raise ServeError("\n".join(lines))
+
+
+def _run_docker() -> None:
+    click.echo("Starting dev server with Docker (docker compose up) ...")
+    try:
+        cmd = ["docker", "compose", "up"]
+        try:
+            subprocess.run(
+                ["docker", "compose", "version"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=True,
+            )
+        except Exception:
+            cmd = ["docker-compose", "up"]
+        subprocess.run(cmd)
+    except KeyboardInterrupt:
+        click.echo("\nServer stopped.")
+
+
+def _run_venv(cwd: Path, manifest: dict[str, Any]) -> None:
+    venv = _find_project_venv(cwd)
+    serve_script = (manifest.get("scripts") or {}).get("serve")
+    if not venv or not serve_script:
+        raise ServeError("Venv mode requested, but no virtual environment or serve script found.")
+    click.echo(f"Starting dev server locally (venv: {venv.name}) ...")
+    try:
+        argv, env = _venv_command(venv, shlex.split(serve_script))
+        subprocess.run(argv, env=env)
+    except KeyboardInterrupt:
+        click.echo("\nServer stopped.")
+    except Exception as e:
+        click.echo(f"❌ Serve script failed: {e}")
+        sys.exit(1)
+
+
+def _run_uv(manifest: dict[str, Any]) -> None:
+    scripts = manifest.get("scripts") or {}
+    serve = scripts.get("serve") or ""
+    if serve.startswith(("uv run ", "uv ")):
+        uv_cmd = serve
+    else:
+        uv_cmd = scripts.get("serve_uv") or ""
+    if not uv_cmd:
+        raise ServeError("Uv mode requested, but no 'serve_uv' script defined in manifest.yaml.")
+    click.echo(f"Starting dev server with uv ({uv_cmd}) ...")
+    try:
+        subprocess.run(shlex.split(uv_cmd))
+    except KeyboardInterrupt:
+        click.echo("\nServer stopped.")
+    except Exception as e:
+        click.echo(f"❌ Serve script failed: {e}")
+        sys.exit(1)
+
+
+def dispatch_serve(mode: str | None = None) -> None:
+    """Run dev server using the fallback docker -> venv -> uv strategy or forced mode."""
+    cwd = Path.cwd()
+    manifest = load_manifest(cwd)  # ensures it's a project
+    selected = select_serve_mode(cwd, manifest, forced=mode)
+
+    if selected == "docker":
+        _run_docker()
+    elif selected == "venv":
+        _run_venv(cwd, manifest)
+    elif selected == "uv":
+        _run_uv(manifest)
 
 
 def dispatch_build() -> None:
