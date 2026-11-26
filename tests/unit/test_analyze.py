@@ -275,3 +275,27 @@ def test_analyze_tool_missing_from_venv_fails_step(
     assert exc_info.value.code == 1
     assert ran == []
     assert "tool 'ruff' not found in project venv" in capsys.readouterr().out
+
+
+def test_analyze_uv_command_uses_system_uv_even_with_venv(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / ".pyartisan").mkdir()
+    (tmp_path / ".pyartisan" / "manifest.yaml").write_text(
+        "id: demo\nframework: fastapi\nscripts:\n  analyze:\n    - {name: lint, cmd: uv run ruff check .}\n",
+        encoding="utf-8",
+    )
+    venv = tmp_path / "venv"
+    monkeypatch.setattr(engine, "_find_project_venv", lambda _cwd: venv)
+    # System uv is available
+    monkeypatch.setattr(
+        shutil, "which", lambda cmd, **kwargs: "/usr/bin/uv" if cmd == "uv" else None
+    )
+    ran: list[Any] = []
+    fake_completed = subprocess.CompletedProcess(args=[], returncode=0)
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: (ran.append((a, k)), fake_completed)[1])
+
+    engine.dispatch_analyze(cwd=tmp_path)
+    assert len(ran) == 1
+    assert ran[0][0][0] == ["uv", "run", "ruff", "check", "."]
+    assert "✔ lint passed." in capsys.readouterr().out

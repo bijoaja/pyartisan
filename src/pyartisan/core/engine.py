@@ -553,7 +553,13 @@ def dispatch_analyze(
             click.echo(f"❌ {name} failed: empty command.")
             continue
 
-        if venv is not None:
+        if argv[0] == "uv":
+            if not shutil.which("uv"):
+                failed.append(name)
+                click.echo(f"❌ {name} failed: 'uv' not found on PATH.")
+                continue
+            cmd_argv, env = argv, os.environ.copy()
+        elif venv is not None:
             bin_dir = str(_venv_bin(venv))
             tool = argv[0]
             if tool not in ("python", "python3") and not shutil.which(tool, path=bin_dir):
