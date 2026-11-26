@@ -140,5 +140,9 @@ def run_checks(upgrade: bool = False, cwd: Path | None = None) -> bool:
                         console.success("Dependencies upgraded successfully.")
                     else:
                         console.error("Upgrade failed.")
+        elif outdated is None:
+            console.warn(
+                "Project dependencies check skipped (no lockfile/requirements or tools unavailable)."
+            )
 
     return all_ok

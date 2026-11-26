@@ -4,6 +4,7 @@ from pathlib import Path
 from click.testing import CliRunner
 
 import pyartisan.shared.doctor as doctor
+from pyartisan import __version__
 from pyartisan.cli.commands.doctor import doctor_cmd
 from pyartisan.shared.updates import install_hint
 
@@ -23,7 +24,7 @@ def test_doctor_reports_new_version(monkeypatch):
     runner = CliRunner()
     result = runner.invoke(doctor_cmd)
     assert result.exit_code == 0
-    assert "1.0.0 -> 1.1.0" in result.output
+    assert f"pyartisan {__version__} -> 1.1.0 available" in result.output
     assert install_hint("1.1.0") in result.output
 
 
@@ -72,6 +73,25 @@ def test_doctor_outdated_does_not_fail(monkeypatch, tmp_path: Path):
     runner = CliRunner()
     result = runner.invoke(doctor_cmd)
     assert result.exit_code == 0
+    assert "flask 3.0.0 -> 3.1.0" in result.output
+
+
+def test_doctor_warns_when_deps_skipped_in_project(monkeypatch, tmp_path: Path):
+    manifest_dir = tmp_path / ".pyartisan"
+    manifest_dir.mkdir(parents=True)
+    (manifest_dir / "manifest.yaml").write_text("id: demo\nframework: flask\n", encoding="utf-8")
+
+    monkeypatch.setattr(doctor, "check_update", lambda *args, **kwargs: None)
+    monkeypatch.setattr(doctor, "find_outdated", lambda cwd: None)
+    monkeypatch.chdir(tmp_path)
+
+    runner = CliRunner()
+    result = runner.invoke(doctor_cmd)
+    assert result.exit_code == 0
+    assert (
+        "Project dependencies check skipped (no lockfile/requirements or tools unavailable)."
+        in result.output
+    )
 
 
 def test_doctor_upgrade_confirms(monkeypatch, tmp_path: Path):

@@ -8,7 +8,7 @@ PyArtisan is a multi-framework Python web development CLI, inspired by Laravel A
 
 - `new`: clone a framework template and set up the project (venv and dependencies, optional)
 - `make`: generate code from the generators declared in the project's manifest, with no hardcoded generator per framework
-- `serve`: Docker first, then the project's venv (with `--docker`, `--venv`, `--uv` runtime flags)
+- `serve`: auto order Docker -> venv -> uv (with `--docker`, `--venv`, `--uv` runtime flags)
 - `build`: run the build script from the manifest
 - `analyze`: run project code quality checks (Ruff, Bandit, Mypy; supports `--only` and `--fix`)
 - `plugin`: package-manager-style plugins (`install`, `apply`, `remove`, ...), see [docs/en/CLI.md](docs/en/CLI.md#7-plugin-system)
@@ -88,11 +88,12 @@ An unknown target, or running outside a project that has `.pyartisan/manifest.ya
 pyartisan serve [--docker | --venv | --uv]
 ```
 
-By default, `serve` picks a strategy automatically:
+By default, `serve` picks a strategy automatically, in order:
 
 1. Docker (`docker compose up`) if `docker-compose.yml` exists and Docker is running.
 2. Otherwise, the `scripts.serve` command from the manifest, run inside the project's own venv (`./venv` or `./.venv`). This also works when PyArtisan itself was installed with `uv tool`.
-3. Otherwise, an error with instructions (exit code 1).
+3. Otherwise, `uv run` if `uv` is available and `serve_uv` is defined in the manifest.
+4. Otherwise, an error with instructions (exit code 1).
 
 Pass `--docker`, `--venv`, or `--uv` to force a specific runtime mode.
 

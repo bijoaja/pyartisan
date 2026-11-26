@@ -37,13 +37,19 @@ def parse_pip_outdated(json_text: str) -> list[Outdated]:
     return results
 
 
-def _has_requirements(cwd: Path) -> bool:
-    if (cwd / "requirements.txt").exists():
-        return True
+def _find_requirements_file(cwd: Path) -> Path | None:
+    req = cwd / "requirements.txt"
+    if req.exists():
+        return req
     try:
-        return any(cwd.glob("requirements*.txt"))
+        matches = sorted(cwd.glob("requirements*.txt"))
+        return matches[0] if matches else None
     except OSError:
-        return False
+        return None
+
+
+def _has_requirements(cwd: Path) -> bool:
+    return _find_requirements_file(cwd) is not None
 
 
 def find_outdated(cwd: Path) -> list[Outdated] | None:
@@ -55,6 +61,7 @@ def find_outdated(cwd: Path) -> list[Outdated] | None:
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=30.0,
             )
             if res.returncode != 0:
                 return None
@@ -72,13 +79,14 @@ def find_outdated(cwd: Path) -> list[Outdated] | None:
                 capture_output=True,
                 text=True,
                 check=False,
-            )
+                timeout=30.0,
+            )  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit - argv list, fixed binary, shell=False
             if res.returncode != 0:
                 return None
             return parse_pip_outdated(res.stdout or "")
 
         return None
-    except (subprocess.SubprocessError, OSError):
+    except (subprocess.SubprocessError, subprocess.TimeoutExpired, OSError):
         return None
 
 
@@ -91,6 +99,7 @@ def upgrade(cwd: Path) -> bool:
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=30.0,
             )
             if res1.returncode != 0:
                 return False
@@ -100,23 +109,26 @@ def upgrade(cwd: Path) -> bool:
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=30.0,
             )
             return res2.returncode == 0
 
-        if _has_requirements(cwd):
+        req_file = _find_requirements_file(cwd)
+        if req_file is not None:
             venv = _find_project_venv(cwd)
             if not venv:
                 return False
             python_bin = _venv_python(venv)
             res = subprocess.run(
-                [str(python_bin), "-m", "pip", "install", "-U", "-r", "requirements.txt"],
+                [str(python_bin), "-m", "pip", "install", "-U", "-r", req_file.name],
                 cwd=cwd,
                 capture_output=True,
                 text=True,
                 check=False,
-            )
+                timeout=30.0,
+            )  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit - argv list, fixed binary, shell=False
             return res.returncode == 0
 
         return False
-    except (subprocess.SubprocessError, OSError):
+    except (subprocess.SubprocessError, subprocess.TimeoutExpired, OSError):
         return False
