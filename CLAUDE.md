@@ -13,7 +13,25 @@ uv tool install --editable .   # atau: pip3 install -e .
 ### Menjalankan CLI secara Lokal
 ```bash
 pyartisan --help
+pyartisan analyze            # jalankan ruff check, ruff format --check, bandit, mypy
+pyartisan analyze --only <check> # jalankan check tertentu (ruff-check, ruff-format, bandit, mypy)
+pyartisan analyze --fix      # perbaiki otomatis jika didukung (ruff check & format)
+pyartisan serve              # otomatis: Docker -> venv -> uv
+pyartisan serve --docker     # paksa mode Docker compose
+pyartisan serve --venv       # paksa venv project
+pyartisan serve --uv         # paksa uv run
+pyartisan doctor             # diagnosa environment & dependensi project
+pyartisan doctor --upgrade   # otomatis upgrade dependensi usang
 ```
+
+### Alur Rilis Tag
+Untuk merilis versi baru PyArtisan:
+1. Perbarui versi di `pyproject.toml` dan `src/pyartisan/__init__.py` (wajib identik).
+2. Buat dan push git tag:
+```bash
+git tag vX.Y.Z && git push --tags
+```
+CI akan memvalidasi wheel dan testing di seluruh platform yang didukung.
 
 ### Pengujian & Linting
 Jalankan test suite berbasis pytest:
@@ -41,14 +59,14 @@ uvx semgrep --config p/python --config p/security-audit src        # Semgrep (lo
 ```
 Setiap `# nosec` / `# nosemgrep` wajib disertai alasan tertulis di baris yang sama.
 
-Cover: `name_parts`, `load_manifest`, `render_stub`, registrasi (`import_list`, `marker`), `config` load/save/reset, `make` generik (termasuk target tidak dikenal dan tanpa manifest), `ProjectContext`, seluruh siklus `plugin` (`init`, `install`, `apply`, `remove`, `uninstall`, `list`, `info`, `status`, `doctor`), pemilihan installer uv vs pip, pemaksaan UTF-8, dan pemilihan venv project untuk `serve`.
+Cover: `name_parts`, `load_manifest`, `render_stub`, registrasi (`import_list`, `marker`), `config` load/save/reset, `make` generik (termasuk target tidak dikenal dan tanpa manifest), `ProjectContext`, seluruh siklus `plugin` (`init`, `install`, `apply`, `remove`, `uninstall`, `list`, `info`, `status`, `doctor`), pemilihan installer uv vs pip, pemaksaan UTF-8, pemilihan runtime untuk `serve` (beserta flag `--docker`, `--venv`, `--uv`), pipeline `analyze`, upgrade dependensi `doctor --upgrade`, dan pencocokan versi `pyproject.toml`.
 
 ## Arsitektur Codebase
 
 PyArtisan adalah **satu package** (`src/pyartisan/`) — sebuah engine CLI multi-framework, murni framework-agnostic di intinya. Tidak ada package top-level terpisah per framework, dan **tidak ada** modul `pyartisan/plugin/` maupun `FrameworkPlugin` (itu rancangan lama di `docs/id/PRD.md`, bukan kode). Pengetahuan framework ada di template repo (FlaskIQ, FastIQ) yang di-clone oleh `pyartisan new`, lewat `.pyartisan/manifest.yaml` milik project.
 
 Peta `src/pyartisan/`:
-- `cli/commands/` — satu file per command; hanya mem-parse argumen lalu memanggil `core/engine.py`.
+- `cli/commands/` — satu file per command (new, make, serve, build, config, doctor, version, plugin, analyze); hanya mem-parse argumen lalu memanggil `core/engine.py`.
 - `core/` — `engine.py` (`dispatch_new/make/serve/build`), `manifest.py`, `registration.py`, `plugin_engine.py` (`ProjectContext`, Project API untuk hook plugin), `exceptions.py`.
 - `marketplace/` — registry plugin global `~/.pyartisan/plugins/` (usage tracking, pemuat `hooks.py`). Ini sistem plugin untuk pengguna (`pyartisan plugin ...`) dan **sudah ada**, berbeda dari modul `plugin/` rancangan lama.
 - `project/` — placeholder Project API, belum berisi kode.

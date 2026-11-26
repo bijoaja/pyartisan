@@ -5,6 +5,7 @@ import click
 
 from pyartisan import __version__
 from pyartisan.cli.commands import (
+    analyze_cmd,
     build_cmd,
     config_group,
     doctor_cmd,
@@ -40,6 +41,7 @@ def cli() -> None:
     pass
 
 
+cli.add_command(analyze_cmd)
 cli.add_command(new_cmd)
 cli.add_command(make_cmd)
 cli.add_command(serve_cmd)
