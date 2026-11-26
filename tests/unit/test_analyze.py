@@ -1,3 +1,4 @@
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -8,7 +9,7 @@ from click.testing import CliRunner
 from pyartisan.cli import cli
 from pyartisan.cli.commands.analyze import analyze_cmd
 from pyartisan.core import engine
-from pyartisan.core.exceptions import ManifestNotFound, PyArtisanError
+from pyartisan.core.exceptions import ManifestError, ManifestNotFound, PyArtisanError
 
 
 def test_steps_from_manifest() -> None:
@@ -76,9 +77,11 @@ def _create_project_manifest(path: Path) -> None:
 def test_analyze_all_pass_exit_0(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _create_project_manifest(tmp_path)
     executed: list[list[str]] = []
+    cwds: list[Any] = []
 
     def fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
         executed.append(cmd)
+        cwds.append(kwargs.get("cwd"))
         return subprocess.CompletedProcess(args=cmd, returncode=0)
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -93,6 +96,7 @@ def test_analyze_all_pass_exit_0(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     assert executed[1] == ["ruff", "format", "--check", "."]
     assert executed[2] == ["bandit", "-q", "-r", ".", "-c", "pyproject.toml"]
     assert executed[3] == ["mypy", "."]
+    assert cwds == [tmp_path] * 4
 
 
 def test_analyze_runs_all_even_if_one_fails(
@@ -124,9 +128,11 @@ def test_analyze_runs_all_even_if_one_fails(
 def test_analyze_only_filters(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _create_project_manifest(tmp_path)
     executed: list[list[str]] = []
+    cwds: list[Any] = []
 
     def fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
         executed.append(cmd)
+        cwds.append(kwargs.get("cwd"))
         return subprocess.CompletedProcess(args=cmd, returncode=0)
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -136,6 +142,7 @@ def test_analyze_only_filters(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     assert len(executed) == 2
     assert executed[0] == ["ruff", "check", "."]
     assert executed[1] == ["mypy", "."]
+    assert cwds == [tmp_path] * 2
 
 
 def test_analyze_unknown_only_lists_valid(tmp_path: Path) -> None:
@@ -189,3 +196,82 @@ def test_analyze_without_manifest_errors(tmp_path: Path) -> None:
 def test_cli_registers_analyze() -> None:
     assert "analyze" in cli.commands
     assert cli.commands["analyze"] is analyze_cmd
+
+
+def test_steps_bandit_includes_src_and_app(tmp_path: Path) -> None:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "app").mkdir()
+    steps = engine.analyze_steps({}, cwd=tmp_path)
+    assert steps[2] == ("bandit", "bandit -q -r src app -c pyproject.toml")
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "ruff check .",
+        [{"name": "ok", "cmd": "x"}, "oops"],
+        ["oops"],
+        [{"name": "a"}],
+        [{"cmd": "x"}],
+        [{"name": 1, "cmd": "x"}],
+        [{"name": "a", "cmd": ["x"]}],
+    ],
+)
+def test_malformed_analyze_raises(bad: Any) -> None:
+    with pytest.raises(ManifestError, match="scripts.analyze"):
+        engine.analyze_steps({"scripts": {"analyze": bad}})
+
+
+def test_malformed_analyze_names_index() -> None:
+    bad = [{"name": "ok", "cmd": "x"}, "oops"]
+    with pytest.raises(ManifestError, match=r"\[1\]"):
+        engine.analyze_steps({"scripts": {"analyze": bad}})
+
+
+def test_empty_analyze_falls_back(tmp_path: Path) -> None:
+    steps = engine.analyze_steps({"scripts": {"analyze": []}}, cwd=tmp_path)
+    assert [s[0] for s in steps] == ["ruff-check", "ruff-format", "bandit", "mypy"]
+
+
+def test_cli_malformed_analyze_exits_1(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    d = tmp_path / ".pyartisan"
+    d.mkdir()
+    (d / "manifest.yaml").write_text(
+        "id: demo\nframework: flask\nscripts:\n  analyze:\n    - nope\n", encoding="utf-8"
+    )
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(analyze_cmd)
+    assert result.exit_code == 1
+    assert "❌" in result.output
+    assert "scripts.analyze[0]" in result.output
+    assert "All checks passed" not in result.output
+
+
+def test_analyze_zero_steps_refuses_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _create_project_manifest(tmp_path)
+    monkeypatch.setattr(engine, "analyze_steps", lambda *a, **k: [])
+    with pytest.raises(PyArtisanError, match="No checks to run"):
+        engine.dispatch_analyze(cwd=tmp_path)
+
+
+def test_analyze_tool_missing_from_venv_fails_step(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / ".pyartisan").mkdir()
+    (tmp_path / ".pyartisan" / "manifest.yaml").write_text(
+        "id: demo\nframework: flask\nscripts:\n  analyze:\n    - {name: lint, cmd: ruff check .}\n",
+        encoding="utf-8",
+    )
+    venv = tmp_path / "venv"
+    monkeypatch.setattr(engine, "_find_project_venv", lambda _cwd: venv)
+    monkeypatch.setattr(shutil, "which", lambda _cmd, **kwargs: None)
+    ran: list[Any] = []
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: ran.append(a))
+
+    with pytest.raises(SystemExit) as exc_info:
+        engine.dispatch_analyze(cwd=tmp_path)
+    assert exc_info.value.code == 1
+    assert ran == []
+    assert "tool 'ruff' not found in project venv" in capsys.readouterr().out

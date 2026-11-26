@@ -296,14 +296,19 @@ def _find_project_venv(cwd: Path) -> Path | None:
     own = Path(sys.prefix).resolve()
     candidates = [cwd / "venv", cwd / ".venv"]
     if os.environ.get("VIRTUAL_ENV"):
-        candidates.append(Path(os.environ["VIRTUAL_ENV"]))
+        env_venv = Path(os.environ["VIRTUAL_ENV"])
+        try:
+            if env_venv.resolve().is_relative_to(cwd.resolve()):
+                candidates.append(env_venv)
+        except (ValueError, OSError):
+            pass
     for c in candidates:
         if (c / "pyvenv.cfg").exists() and _venv_python(c).exists() and c.resolve() != own:
             return c
     return None
 
 
-def _venv_command(venv: Path, argv: list[str]) -> tuple[list[str], dict]:
+def _venv_command(venv: Path, argv: list[str]) -> tuple[list[str], dict[str, str]]:
     """Run argv inside venv. PATH alone is not trusted: on Windows `python3` does not exist in a
     venv and a PATH entry does not override the caller's own Python, so resolve argv[0] explicitly."""
     bin_dir = str(_venv_bin(venv))
@@ -316,7 +321,7 @@ def _venv_command(venv: Path, argv: list[str]) -> tuple[list[str], dict]:
     if argv[0] in ("python", "python3"):
         argv = [str(_venv_python(venv)), *argv[1:]]
     else:
-        argv = [shutil.which(argv[0], path=env["PATH"]) or argv[0], *argv[1:]]
+        argv = [shutil.which(argv[0], path=bin_dir) or argv[0], *argv[1:]]
     return argv, env
 
 
@@ -372,18 +377,25 @@ def select_serve_mode(cwd: Path, manifest: dict[str, Any], forced: str | None = 
 
 def _run_docker() -> None:
     click.echo("Starting dev server with Docker (docker compose up) ...")
+    cmd = ["docker", "compose", "up"]
     try:
-        cmd = ["docker", "compose", "up"]
-        try:
-            subprocess.run(
-                ["docker", "compose", "version"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=True,
+        subprocess.run(
+            ["docker", "compose", "version"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True,
+        )
+    except Exception:
+        if not shutil.which("docker-compose"):
+            raise ServeError(
+                "Docker mode requested, but neither the Compose plugin nor docker-compose is installed."
             )
-        except Exception:
-            cmd = ["docker-compose", "up"]
-        subprocess.run(cmd)
+        cmd = ["docker-compose", "up"]
+
+    try:
+        res = subprocess.run(cmd)
+        if res.returncode != 0:
+            sys.exit(res.returncode)
     except KeyboardInterrupt:
         click.echo("\nServer stopped.")
 
@@ -396,7 +408,12 @@ def _run_venv(cwd: Path, manifest: dict[str, Any]) -> None:
     click.echo(f"Starting dev server locally (venv: {venv.name}) ...")
     try:
         argv, env = _venv_command(venv, shlex.split(serve_script))
-        subprocess.run(argv, env=env)
+        res = subprocess.run(
+            argv,
+            env=env,
+        )  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit - argv list from the project's own manifest, shell=False
+        if res.returncode != 0:
+            sys.exit(res.returncode)
     except KeyboardInterrupt:
         click.echo("\nServer stopped.")
     except Exception as e:
@@ -415,7 +432,11 @@ def _run_uv(manifest: dict[str, Any]) -> None:
         raise ServeError("Uv mode requested, but no 'serve_uv' script defined in manifest.yaml.")
     click.echo(f"Starting dev server with uv ({uv_cmd}) ...")
     try:
-        subprocess.run(shlex.split(uv_cmd))
+        res = subprocess.run(
+            shlex.split(uv_cmd)
+        )  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit - argv list from the project's own manifest, shell=False
+        if res.returncode != 0:
+            sys.exit(res.returncode)
     except KeyboardInterrupt:
         click.echo("\nServer stopped.")
     except Exception as e:
@@ -463,23 +484,33 @@ def analyze_steps(
     scripts = manifest.get("scripts")
     if not isinstance(scripts, dict):
         scripts = {}
-    analyze_cfg = scripts.get("analyze")
-    if isinstance(analyze_cfg, list) and analyze_cfg:
-        steps: list[tuple[str, str]] = []
-        for step in analyze_cfg:
-            if isinstance(step, dict):
-                name = str(step.get("name", ""))
-                cmd = str(step.get("fix") if fix and "fix" in step else step.get("cmd", ""))
+
+    if "analyze" in scripts and scripts["analyze"] is not None:
+        analyze_cfg = scripts["analyze"]
+        if not isinstance(analyze_cfg, list):
+            raise ManifestError(
+                "scripts.analyze must be a list of step mappings, got "
+                f"{type(analyze_cfg).__name__}."
+            )
+        if analyze_cfg:
+            steps: list[tuple[str, str]] = []
+            for i, step in enumerate(analyze_cfg):
+                if (
+                    not isinstance(step, dict)
+                    or not isinstance(step.get("name"), str)
+                    or not isinstance(step.get("cmd"), str)
+                ):
+                    raise ManifestError(
+                        f"Invalid scripts.analyze[{i}]: expected mapping with string 'name' and 'cmd'."
+                    )
+                name = step["name"]
+                cmd = str(step.get("fix") if fix and "fix" in step else step["cmd"])
                 steps.append((name, cmd))
-        return steps
+            return steps
 
     target_cwd = cwd or Path.cwd()
-    if (target_cwd / "src").is_dir():
-        bandit_target = "src"
-    elif (target_cwd / "app").is_dir():
-        bandit_target = "app"
-    else:
-        bandit_target = "."
+    targets = [d for d in ("src", "app") if (target_cwd / d).is_dir()]
+    bandit_target = " ".join(targets) if targets else "."
 
     return [
         ("ruff-check", "ruff check --fix ." if fix else "ruff check ."),
@@ -508,19 +539,37 @@ def dispatch_analyze(
                 )
         steps = [s for s in steps if s[0] in only]
 
+    if not steps:
+        raise PyArtisanError("No checks to run.")
+
     venv = _find_project_venv(target_cwd)
     failed: list[str] = []
 
     for name, cmd_str in steps:
         click.echo(f"Running {name} ({cmd_str}) ...")
         argv = shlex.split(cmd_str)
+        if not argv:
+            failed.append(name)
+            click.echo(f"❌ {name} failed: empty command.")
+            continue
+
         if venv is not None:
+            bin_dir = str(_venv_bin(venv))
+            tool = argv[0]
+            if tool not in ("python", "python3") and not shutil.which(tool, path=bin_dir):
+                failed.append(name)
+                click.echo(f"❌ {name} failed: tool '{tool}' not found in project venv.")
+                continue
             cmd_argv, env = _venv_command(venv, argv)
         else:
             cmd_argv, env = argv, os.environ.copy()
 
         try:
-            result = subprocess.run(cmd_argv, env=env, cwd=target_cwd)
+            result = subprocess.run(
+                cmd_argv,
+                env=env,
+                cwd=target_cwd,
+            )  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit - argv list from the project's own manifest, shell=False
             if result.returncode == 0:
                 click.echo(f"✔ {name} passed.")
             else:
